@@ -290,6 +290,33 @@ body.stage .targetChip { background: #F7F6F2; color: #16150F; border-color: tran
 .stageFoot { display: flex; align-items: center; gap: 12px; }
 .stageFoot .cap { color: var(--muted); }
 .stageFoot .btn { width: auto; margin-left: auto; min-height: 40px; padding: 9px 16px; font-size: 13px; }
+#countdown {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center; background: var(--bg);
+}
+#countdown b {
+  font-family: var(--mono); font-weight: 500; font-size: clamp(96px, 26vmin, 190px);
+  line-height: 1; letter-spacing: -.04em; color: var(--ink);
+  animation: cdIn .68s cubic-bezier(.2,.7,.3,1) both;
+}
+#countdown .ring { position: absolute; width: clamp(190px, 46vmin, 320px); aspect-ratio: 1; }
+#countdown .ring circle { fill: none; stroke: var(--accent); stroke-width: 2; opacity: .5; }
+#countdown .ring circle { animation: cdRing .68s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes cdIn {
+  from { transform: scale(1.28); opacity: 0; }
+  22%  { opacity: 1; }
+  to   { transform: scale(1); opacity: .82; }
+}
+@keyframes cdRing {
+  from { transform: scale(.72); opacity: 0; }
+  30%  { opacity: .5; }
+  to   { transform: scale(1.06); opacity: 0; }
+}
+#countdown .ring { transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  #countdown b, #countdown .ring circle { animation: none; opacity: 1; }
+  #countdown .ring { display: none; }
+}
 .progressLine { height: 2px; background: var(--hairline); border-radius: 2px; overflow: hidden; }
 .progressLine i { display: block; height: 100%; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left center; transition: transform .18s ease; }
 .progressLine.warm i { background: var(--crit); }
@@ -394,21 +421,40 @@ th.del, td.del { width: 30px; padding-right: 0; text-align: right; }
   .swLog { grid-template-columns: repeat(2, 1fr); }
 }
 /* the grid must never outgrow the window: it is square, so cap it by leftover height */
-body.stage #shell { padding-top: 10px; }
+/* the stage fills the window and centres the grid, so the fixation point always
+   lands in the same place on screen */
+body.stage #shell {
+  padding-top: 10px;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
+}
+body.stage #scr-stage { flex: 1 1 auto; display: flex; }
+body.stage .stageWrap { flex: 1 1 auto; align-content: stretch; grid-template-rows: minmax(0, 1fr); }
+body.stage .stageMain {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; gap: 14px;
+}
+body.stage #stageBody { display: flex; align-items: center; justify-content: center; }
 body.stage .gridWrap { width: min(100%, 470px, calc(100vh - 210px)); }
+/* the red-black stage also carries the sequence hint and the switch log */
+body.stage .gorbovWrap { width: min(100%, 470px, calc(100vh - 348px)); }
+@media (max-height: 680px) {
+  body.stage .swLog, body.stage .stageExtraCap { display: none; }
+  body.stage .gorbovWrap { width: min(100%, 470px, calc(100vh - 264px)); }
+}
 body.stage #nbGrid { width: min(100%, 340px, calc(100vh - 300px)); }
 .rail { display: none; }
 @media (min-width: 1024px) {
   body.stage #shell { max-width: 1180px; }
   body.stage #scr-stage .stageWrap {
     grid-template-columns: 220px minmax(0, 1fr) 230px;
-    gap: 34px; align-items: start;
+    gap: 34px; align-items: stretch;
   }
+  body.stage .rail { align-self: start; }
   body.stage .gridWrap { width: min(100%, 470px, calc(100vh - 190px)); }
   .rail { display: block; }
   .rail .cap { display: block; margin-bottom: 8px; }
   .railR { text-align: left; }
-  .stageMain { display: grid; gap: 16px; }
+  body.stage .stageMain { gap: 16px; }
 }
 @media (min-width: 720px) and (max-width: 1023px) {
   #shell { max-width: 620px; }
@@ -569,7 +615,8 @@ ru: {
   normNback: n => 'Сессия: 20 + N² = ' + (20 + n * n) + ' предъявлений по 3 с',
   start: 'Старт', series5: 'Серия из 5 · ЭР, ВР, ПУ', nbStart: 'Начать сессию',
   sizeLbl: 'Размер', modeLbl: 'Режим', modeClick: 'Клики', modeGaze: 'Взгляд',
-  errSound: 'Звук на ошибку', soundLbl: 'Звуки', setRu: 'Русские', setEn: 'English',
+  errSound: 'Звук на ошибку', haptics: 'Вибрация', countdown: 'Обратный отсчёт',
+  soundLbl: 'Звуки', setRu: 'Русские', setEn: 'English',
   find: 'Найдите', findGaze: 'Найдите все числа взглядом',
   errorsCap: 'Ошибки', gazeFinish: 'Финиш · пробел', abort: 'Прервать · Esc',
   foundOf: (k, n) => 'Найдено ' + k + ' из ' + n,
@@ -652,7 +699,8 @@ en: {
   normNback: n => 'Session: 20 + N² = ' + (20 + n * n) + ' trials, 3 s each',
   start: 'Start', series5: 'Series of 5 · EF, WU, ST', nbStart: 'Start session',
   sizeLbl: 'Size', modeLbl: 'Mode', modeClick: 'Clicks', modeGaze: 'Gaze',
-  errSound: 'Sound on error', soundLbl: 'Sounds', setRu: 'Русские', setEn: 'English',
+  errSound: 'Sound on error', haptics: 'Vibration', countdown: 'Countdown',
+  soundLbl: 'Sounds', setRu: 'Русские', setEn: 'English',
   find: 'Find', findGaze: 'Find every number with your eyes',
   errorsCap: 'Errors', gazeFinish: 'Finish · space', abort: 'Abort · Esc',
   foundOf: (k, n) => 'Found ' + k + ' of ' + n,
@@ -1148,6 +1196,64 @@ function errorBeep() {
   } catch (e) { /* audio is a nicety, never a failure */ }
 }
 
+/* ---- tactile feedback: Telegram's haptics inside the client, the Vibration API
+   outside it (Android only — iOS Safari has none) ---- */
+const Haptics = {
+  tg() {
+    return (TG && TG.HapticFeedback && TG.isVersionAtLeast && TG.isVersionAtLeast('6.1')) ? TG.HapticFeedback : null;
+  },
+  available() { return !!(this.tg() || navigator.vibrate); },
+  on() { return S().haptics !== false && this.available(); },
+  fire(method, arg, pattern) {
+    if (!this.on()) return;
+    const h = this.tg();
+    try {
+      if (h) h[method](arg);
+      else if (navigator.vibrate) navigator.vibrate(pattern);
+    } catch (e) { /* haptics are a nicety, never a failure */ }
+  },
+  tick() { this.fire('selectionChanged', undefined, 8); },
+  hit() { this.fire('impactOccurred', 'light', 14); },
+  error() { this.fire('notificationOccurred', 'error', [26, 40, 26]); },
+  success() { this.fire('notificationOccurred', 'success', [12, 60, 26]); },
+  warning() { this.fire('notificationOccurred', 'warning', [24, 60, 24]); }
+};
+
+/* ---- 3-2-1 before an exercise: it lets the eyes settle in the centre, so the
+   clock starts from a still state instead of mid-click ---- */
+let CD = null;
+function countdown(cb) {
+  cancelCountdown();
+  if (S().countdown === false) { cb(); return; }
+  const ov = el('div');
+  ov.id = 'countdown';
+  const ring = svgEl('svg', { viewBox: '0 0 100 100' });
+  ring.setAttribute('class', 'ring');
+  ring.append(svgEl('circle', { cx: 50, cy: 50, r: 48 }));
+  const num = el('b');
+  ov.append(ring, num);
+  document.body.append(ov);
+  let n = 3;
+  const paint = () => {
+    num.textContent = n;
+    [num, ring.firstElementChild].forEach(e => { e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; });
+    Haptics.tick();
+  };
+  paint();
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) { cancelCountdown(); Haptics.hit(); cb(); return; }
+    paint();
+  }, 700);
+  CD = { iv, ov };
+}
+function cancelCountdown() {
+  if (!CD) return;
+  clearInterval(CD.iv);
+  CD.ov.remove();
+  CD = null;
+}
+
 /* ================= Fullscreen ================= */
 const FS = {
   tgAvailable() { return !!(TG && TG.isVersionAtLeast && TG.isVersionAtLeast('8.0') && typeof TG.requestFullscreen === 'function'); },
@@ -1405,6 +1511,10 @@ function exIcon(ex) {
 }
 
 /* ================= Pre-launch ================= */
+function appendFeedbackRows(set) {
+  if (Haptics.available()) set.append(switchRow(t('haptics'), S().haptics !== false, v => saveSettings({ haptics: v })));
+  set.append(switchRow(t('countdown'), S().countdown !== false, v => saveSettings({ countdown: v })));
+}
 function renderPre() {
   $('preTitle').textContent = exName(EX);
   $('preSub').textContent = exWhat(EX);
@@ -1414,6 +1524,7 @@ function renderPre() {
     set.append(settingRow(t('sizeLbl'), seg(S().size || 5, [{ v: 4, label: '4×4' }, { v: 5, label: '5×5' }, { v: 6, label: '6×6' }], v => { saveSettings({ size: +v }); $('preNorm').textContent = t('normSchulte'); })));
     set.append(settingRow(t('modeLbl'), seg(S().mode || 'click', [{ v: 'click', label: t('modeClick') }, { v: 'gaze', label: t('modeGaze') }], v => saveSettings({ mode: v }))));
     set.append(switchRow(t('errSound'), !!S().errSound, v => saveSettings({ errSound: v })));
+    appendFeedbackRows(set);
     $('preHow').textContent = t('preHowSchulte');
     $('preNorm').textContent = t('normSchulte');
     $('preStart').textContent = t('start');
@@ -1422,12 +1533,14 @@ function renderPre() {
     $('preNote').hidden = true;
   } else if (EX === 'gorbov') {
     set.append(switchRow(t('errSound'), !!S().errSound, v => saveSettings({ errSound: v })));
+    appendFeedbackRows(set);
     $('preHow').textContent = t('preHowGorbov');
     $('preNorm').textContent = t('normGorbov');
     $('preStart').textContent = t('start');
     $('preSecond').hidden = true;
     $('preNote').hidden = true;
   } else {
+    appendFeedbackRows(set);
     set.append(settingRow(t('soundLbl'), seg(nbSet(), [{ v: 'ru', label: t('setRu') }, { v: 'en', label: t('setEn') }], v => { saveSettings({ nbSet: v }); nbCheckVoice(); })));
     $('preHow').textContent = t('preHowNback');
     $('preNorm').textContent = t('normNback')(DB.meta.nback.n);
@@ -1533,12 +1646,13 @@ function renderRails() {
   }
 }
 $('stageAbort').addEventListener('click', () => { abortAll(); go('pre'); });
-function abortAll() { Sch.abort(); Gor.abort(); Nb.abort(); }
+function abortAll() { cancelCountdown(); Sch.abort(); Gor.abort(); Nb.abort(); }
 
 /* ================= Schulte ================= */
 const Sch = {
   run: null, series: null,
-  begin() {
+  begin() { EX = 'schulte'; go('stage'); stageReset(); countdown(() => this.start()); },
+  start() {
     const size = S().size || 5, mode = S().mode || 'click', n = size * size;
     const order = shuffle(Array.from({ length: n }, (_, i) => i + 1));
     this.run = { size, mode, next: 1, errors: 0, presses: [], t0: performance.now(), tPrev: performance.now() };
@@ -1586,6 +1700,7 @@ const Sch = {
       // already-searched cells and take the load off peripheral vision
       b.classList.add('ok');
       setTimeout(() => b.classList.remove('ok'), 140);
+      Haptics.tick();
       if (this.run.next > n) { this.finish(now); return; }
       this.chip.textContent = this.run.next;
       stageProgress((this.run.next - 1) / n);
@@ -1593,7 +1708,7 @@ const Sch = {
     } else {
       this.run.errors++;
       if (this.errBox) this.errBox.textContent = t('errorsCap') + ' ' + this.run.errors;
-      errorBeep();
+      errorBeep(); Haptics.error();
       b.classList.add('bad');
       setTimeout(() => b.classList.remove('bad'), 260);
     }
@@ -1629,7 +1744,8 @@ const Sch = {
 /* ================= Gorbov–Schulte ================= */
 const Gor = {
   run: null,
-  begin() {
+  begin() { EX = 'gorbov'; go('stage'); stageReset(); countdown(() => this.start()); },
+  start() {
     const cells = genGorbov();
     this.run = { cells, step: 0, errors: 0, presses: [], t0: performance.now(), tPrev: performance.now() };
     EX = 'gorbov';
@@ -1640,7 +1756,7 @@ const Gor = {
     this.chip = chip;
     this.timer = meter.firstElementChild;
     this.errBox = meter.lastElementChild;
-    const wrap = el('div', 'gridWrap');
+    const wrap = el('div', 'gridWrap gorbovWrap');
     const grid = el('div', 'tblGrid');
     grid.id = 'gGrid';
     grid.dataset.size = 7;
@@ -1653,11 +1769,11 @@ const Gor = {
     grid.addEventListener('click', e => this.press(e));
     wrap.append(grid);
     $('stageBody').append(wrap);
-    const seqLine = el('p', 'cap', t('seqHint'));
+    const seqLine = el('p', 'cap seqLine', t('seqHint'));
     seqLine.style.textAlign = 'center';
     seqLine.style.margin = '14px 0 12px';
     $('stageExtra').append(seqLine);
-    const logCap = el('span', 'cap', t('capSwitches'));
+    const logCap = el('span', 'cap stageExtraCap', t('capSwitches'));
     logCap.style.display = 'block';
     logCap.style.marginBottom = '8px';
     this.log = el('div', 'swLog');
@@ -1681,6 +1797,7 @@ const Gor = {
       this.run.tPrev = now;
       b.classList.add('ok');
       setTimeout(() => b.classList.remove('ok'), 140);
+      Haptics.tick();
       const entry = el('div', tg.red ? 'red' : null);
       entry.append(el('span', null, (tg.red ? t('gRed') : t('gBlack')) + tg.n), el('em', null, fmtS(dt / 1000)));
       this.log.prepend(entry);
@@ -1693,7 +1810,7 @@ const Gor = {
     } else {
       this.run.errors++;
       this.errBox.textContent = t('errorsCap') + ' ' + this.run.errors;
-      errorBeep();
+      errorBeep(); Haptics.error();
       b.classList.add('bad');
       setTimeout(() => b.classList.remove('bad'), 260);
     }
@@ -1764,6 +1881,9 @@ const Nb = {
   run: null,
   begin() {
     if (!nbCheckVoice()) return;
+    EX = 'nback'; go('stage'); stageReset(); countdown(() => this.start());
+  },
+  start() {
     const n = DB.meta.nback.n, set = nbSet();
     const trials = genNback(n, set);
     this.run = { trials, set, idx: -1, ansPos: [], ansAud: [] };
@@ -1828,7 +1948,7 @@ const Nb = {
     const btn = ch === 'pos' ? this.bPos : this.bAud;
     btn.className = isMatch ? 'hit' : 'fa';
     btn.lastElementChild.textContent = isMatch ? t('nbMatched') : (ch === 'pos' ? 'A' : 'L');
-    if (!isMatch) errorBeep();
+    if (isMatch) Haptics.hit(); else { errorBeep(); Haptics.error(); }
   },
   finish() {
     const r = this.run;
@@ -1863,6 +1983,7 @@ function focusStatsOn(rec) {
 function showResult(rec, series, lvl) {
   const isNb = rec.kind === 'nback';
   focusStatsOn(rec);
+  if (lvl && lvl.change === 'down') Haptics.warning(); else Haptics.success();
   const det = rec.kind === 'schulte' ? rec.size + '×' + rec.size + ' · ' + t(rec.mode === 'click' ? 'modeClick' : 'modeGaze')
     : rec.kind === 'gorbov' ? '7×7' : 'N = ' + rec.n;
   $('resCap').textContent = exName(rec.kind) + ' · ' + det;
