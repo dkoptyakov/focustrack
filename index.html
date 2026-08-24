@@ -270,23 +270,28 @@ body.stage .targetChip { background: #F7F6F2; color: #16150F; border-color: tran
 .stageTimer { font-family: var(--mono); font-weight: 500; font-size: 26px; line-height: 1.1; letter-spacing: -.01em; }
 .stageErr { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink2); }
 .gridWrap { width: min(100%, 470px); margin: 0 auto; }
-.tblGrid { display: grid; gap: 8px; }
+/* one continuous table rather than separate tiles: the 1px gap is the grid line
+   showing through, so lines never double up */
+.tblGrid {
+  display: grid; gap: 1px; background: var(--cell-border);
+  border: 1px solid var(--cell-border); border-radius: 4px; overflow: hidden;
+}
 .tblGrid button {
-  aspect-ratio: 1; border: 1px solid var(--cell-border); border-radius: var(--r-cell);
+  aspect-ratio: 1; border: 0; border-radius: 0;
   background: var(--cell); color: var(--ink);
   font-family: var(--mono); font-weight: 500; cursor: pointer; padding: 0;
   user-select: none; -webkit-user-select: none;
-  transition: background .1s, border-color .1s, color .1s;
+  transition: background .1s, color .1s;
 }
 .tblGrid[data-size="4"] button { font-size: clamp(22px, 8vmin, 32px); }
 .tblGrid[data-size="5"] button { font-size: clamp(19px, 6.4vmin, 27px); }
 .tblGrid[data-size="6"] button { font-size: clamp(16px, 5.2vmin, 22px); }
-.tblGrid[data-size="7"] button { font-size: clamp(13px, 4.3vmin, 18px); border-radius: 7px; }
-.tblGrid button.redCell { background: var(--crit); color: #fff; border-color: transparent; }
-.tblGrid button.ok { background: var(--done-bg); color: var(--done-ink); border-color: var(--done-border); }
-.tblGrid button.bad { background: var(--bad-bg); color: var(--bad-ink); border-color: var(--bad-border); }
-.tblGrid button.redCell.ok { background: var(--accent); color: #fff; border-color: transparent; }
-.tblGrid button.redCell.bad { background: var(--bad-bg); color: var(--bad-ink); border-color: var(--bad-border); }
+.tblGrid[data-size="7"] button { font-size: clamp(13px, 4.3vmin, 18px); }
+.tblGrid button.redCell { background: var(--crit); color: #fff; }
+.tblGrid button.ok { background: var(--done-bg); color: var(--done-ink); }
+.tblGrid button.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.tblGrid button.redCell.ok { background: var(--accent); color: #fff; }
+.tblGrid button.redCell.bad { background: var(--bad-bg); color: var(--bad-ink); }
 .stageFoot { display: flex; align-items: center; gap: 12px; }
 .stageFoot .cap { color: var(--muted); }
 .stageFoot .btn { width: auto; margin-left: auto; min-height: 40px; padding: 9px 16px; font-size: 13px; }
@@ -351,6 +356,15 @@ body.stage .targetChip { background: #F7F6F2; color: #16150F; border-color: tran
 .swLog div.red { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad-ink); }
 .swLog div em { font-style: normal; color: var(--muted); }
 .swLog div.red em { color: var(--bad-ink); opacity: .8; }
+
+/* the start button sits in the middle of a preview of the table: finger and eye
+   begin where the exercise wants them — in the centre */
+.preGrid { position: relative; width: min(100%, 470px); margin: 0 auto; }
+.preGrid .tblGrid button:not(.startCell) { pointer-events: none; color: var(--muted); }
+.preGrid .tblGrid button.redCell { color: rgba(255,255,255,.72); }
+.preGrid .startCell {
+  border-radius: 0; width: auto; min-height: 0; font-size: 18px;
+}
 
 /* ========== 7. Result ========== */
 .resHero { font-family: var(--mono); font-weight: 500; font-size: 60px; line-height: 1; letter-spacing: -.03em; margin: 6px 0 12px; }
@@ -511,10 +525,11 @@ body.stage #nbGrid { width: min(100%, 340px, calc(100vh - 300px)); }
     <button class="back navBack">←&nbsp;<span data-i18n="back"></span></button>
     <h1 id="preTitle"></h1>
     <p class="sub" id="preSub" style="margin-top:4px"></p>
+    <div class="sec" id="preStage"></div>
     <div class="block sec" id="preSettings"></div>
     <p class="note sec" id="preHow"></p>
     <div class="plate mono sec" id="preNorm"></div>
-    <div class="sec"><button class="btn primary" id="preStart"></button></div>
+    <div class="sec" id="preStartHolder"><button class="btn primary" id="preStart"></button></div>
     <div style="margin-top:10px"><button class="btn" id="preSecond"></button></div>
     <div id="preNote" class="plate warn sec" hidden></div>
   </section>
@@ -1526,13 +1541,47 @@ function appendFeedbackRows(set) {
   if (Haptics.available()) set.append(switchRow(t('haptics'), S().haptics !== false, v => saveSettings({ haptics: v })));
   set.append(switchRow(t('countdown'), S().countdown !== false, v => saveSettings({ countdown: v })));
 }
+/* a still table with Start in its centre; n-back has no table, so it keeps the
+   plain button below */
+function renderPreStage() {
+  const host = $('preStage');
+  host.replaceChildren();
+  if (EX === 'nback') { host.hidden = true; $('preStartHolder').hidden = false; return; }
+  host.hidden = false;
+  $('preStartHolder').hidden = true;
+  const size = EX === 'gorbov' ? 7 : (S().size || 5);
+  const wrap = el('div', 'preGrid');
+  const grid = el('div', 'tblGrid');
+  grid.dataset.size = size;
+  grid.style.gridTemplateColumns = 'repeat(' + size + ', 1fr)';
+  /* the middle of the table becomes the button itself, so the cells around it
+     stay whole instead of being covered by an overlay */
+  const span = size % 2 ? 3 : 2;
+  const from = Math.floor((size - span) / 2);
+  const n = size * size;
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / size), c = i % size;
+    if (r >= from && r < from + span && c >= from && c < from + span) continue;
+    const b = el('button', null, String(EX === 'gorbov' ? (i < 25 ? i + 1 : i - 24) : i + 1));
+    if (EX === 'gorbov' && i >= 25) b.className = 'redCell';
+    b.tabIndex = -1;
+    b.style.gridArea = (r + 1) + ' / ' + (c + 1);
+    grid.append(b);
+  }
+  const btn = el('button', 'btn primary startCell', $('preStart').textContent);
+  btn.style.gridArea = (from + 1) + ' / ' + (from + 1) + ' / span ' + span + ' / span ' + span;
+  btn.addEventListener('click', startExercise);
+  grid.append(btn);
+  wrap.append(grid);
+  host.append(wrap);
+}
 function renderPre() {
   $('preTitle').textContent = exName(EX);
   $('preSub').textContent = exWhat(EX);
   const set = $('preSettings');
   set.replaceChildren();
   if (EX === 'schulte') {
-    set.append(settingRow(t('sizeLbl'), seg(S().size || 5, [{ v: 4, label: '4×4' }, { v: 5, label: '5×5' }, { v: 6, label: '6×6' }], v => { saveSettings({ size: +v }); $('preNorm').textContent = t('normSchulte'); })));
+    set.append(settingRow(t('sizeLbl'), seg(S().size || 5, [{ v: 4, label: '4×4' }, { v: 5, label: '5×5' }, { v: 6, label: '6×6' }], v => { saveSettings({ size: +v }); renderPreStage(); })));
     set.append(settingRow(t('modeLbl'), seg(S().mode || 'click', [{ v: 'click', label: t('modeClick') }, { v: 'gaze', label: t('modeGaze') }], v => saveSettings({ mode: v }))));
     set.append(switchRow(t('errSound'), !!S().errSound, v => saveSettings({ errSound: v })));
     appendFeedbackRows(set);
@@ -1559,12 +1608,14 @@ function renderPre() {
     $('preSecond').hidden = true;
     nbCheckVoice();
   }
+  renderPreStage();
 }
-$('preStart').addEventListener('click', () => {
+function startExercise() {
   if (EX === 'schulte') { Sch.series = null; Sch.begin(); }
   else if (EX === 'gorbov') Gor.begin();
   else Nb.begin();
-});
+}
+$('preStart').addEventListener('click', startExercise);
 $('preSecond').addEventListener('click', () => { Sch.series = { times: [], ids: [] }; Sch.begin(); });
 
 /* ================= Stage shell ================= */
