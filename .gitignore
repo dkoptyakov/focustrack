@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.log
+
+# Local working documents — not part of the published product
+specs/
+.specify/
+.claude/
+.impeccable/
+PRODUCT.md

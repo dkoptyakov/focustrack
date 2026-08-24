@@ -1,0 +1,1838 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<title>FocusTrack</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ========== 1. Design tokens & themes ========== */
+:root {
+  color-scheme: light;
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #898781;
+  --hairline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11,11,11,.10);
+  --accent: #2a78d6;
+  --accent-soft: rgba(42,120,214,.14);
+  --good: #006300;
+  --good-soft: rgba(12,163,12,.16);
+  --crit: #d03b3b;
+  --crit-soft: rgba(208,59,59,.22);
+  --fs-micro: 0.8rem;
+  --fs-h2: 1.25rem;
+  --fs-h1: 2rem;
+  --fs-hero: 3.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --hairline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,.10);
+    --accent: #3987e5;
+    --accent-soft: rgba(57,135,229,.20);
+    --good: #0ca30c;
+    --good-soft: rgba(12,163,12,.22);
+    --crit: #d03b3b;
+    --crit-soft: rgba(208,59,59,.30);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink2: #c3c2b7;
+  --muted: #898781;
+  --hairline: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255,255,255,.10);
+  --accent: #3987e5;
+  --accent-soft: rgba(57,135,229,.20);
+  --good: #0ca30c;
+  --good-soft: rgba(12,163,12,.22);
+  --crit: #d03b3b;
+  --crit-soft: rgba(208,59,59,.30);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+::selection { background: var(--accent-soft); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+* { scrollbar-width: thin; scrollbar-color: var(--baseline) transparent; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+button { touch-action: manipulation; font-family: inherit; }
+main { max-width: 940px; margin: 0 auto; padding: 16px 16px 60px; }
+header.top {
+  max-width: 940px; margin: 0 auto; padding: 14px 16px 0;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+}
+.brand { cursor: pointer; border: 0; background: none; padding: 0; text-align: left; color: inherit; }
+.brand h1 { font-size: var(--fs-h1); margin: 0; letter-spacing: -0.02em; line-height: 1.1; }
+.brand .sub { color: var(--ink2); margin: 1px 0 0; font-size: var(--fs-micro); }
+.topRight { display: flex; gap: 10px; align-items: center; margin-left: auto; }
+.badge {
+  font-size: var(--fs-micro); color: var(--ink2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px; display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.badge.cloud .dot { background: var(--accent); }
+.badge.err .dot { background: var(--crit); }
+h2 { font-size: var(--fs-h2); margin: 0 0 10px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.hint { color: var(--muted); font-size: var(--fs-micro); margin: 8px 0 0; }
+.empty { color: var(--muted); padding: 14px 0; text-align: center; }
+.note {
+  border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+  color: var(--ink2); margin: 10px 0;
+}
+.note.warn { border-color: var(--crit); }
+/* ---------- controls ---------- */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl > .lbl { font-size: var(--fs-micro); color: var(--ink2); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.seg button {
+  border: 0; background: transparent; color: var(--ink2);
+  padding: 8px 14px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.chk { display: flex; align-items: center; gap: 6px; color: var(--ink2); cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+button.primary, button.ghost {
+  cursor: pointer; border-radius: 10px; padding: 9px 18px; min-height: 42px; font-size: 1rem;
+}
+button.primary { background: var(--accent); color: #fff; border: 1px solid transparent; font-weight: 600; }
+button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--border); }
+button.primary:hover { filter: brightness(1.06); }
+button.ghost:hover { background: var(--accent-soft); }
+button:disabled { opacity: .45; cursor: default; }
+.backRow { margin: 2px 0 10px; }
+.backRow button { border: 0; background: none; color: var(--ink2); cursor: pointer; padding: 6px 8px 6px 0; }
+.backRow button:hover { color: var(--ink); }
+/* ---------- home ---------- */
+.exList { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px; }
+.exItem {
+  display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 4px 14px;
+  text-align: left; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; cursor: pointer;
+}
+.exItem:hover { background: var(--accent-soft); }
+.exItem svg { grid-row: span 2; width: 40px; height: 40px; color: var(--accent); }
+.exItem .exName { font-weight: 650; font-size: var(--fs-h2); }
+.exItem .exWhat { grid-column: 2; color: var(--ink2); font-size: var(--fs-micro); }
+.exItem .exHint { grid-row: span 2; color: var(--muted); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; text-align: right; }
+/* ---------- stage (shared by the table exercises) ---------- */
+#hud, #gHud { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; min-height: 28px; margin-bottom: 10px; flex-wrap: wrap; }
+.hudLeft { color: var(--ink2); }
+.hudLeft b { color: var(--ink); font-size: var(--fs-h2); }
+.hudRight { display: flex; gap: 16px; align-items: baseline; margin-left: auto; }
+.hudTimer { font-variant-numeric: tabular-nums; color: var(--ink2); }
+.hudErr { color: var(--ink2); font-size: var(--fs-micro); }
+.gridWrap { position: relative; width: min(100%, 520px); margin: 0 auto; }
+.tblGrid { display: grid; gap: 6px; width: 100%; }
+.tblGrid button {
+  aspect-ratio: 1; border: 1px solid var(--hairline); border-radius: 9px;
+  background: var(--surface); color: var(--ink);
+  font-weight: 600; cursor: pointer;
+  user-select: none; -webkit-user-select: none; padding: 0;
+  transition: background .08s;
+}
+.tblGrid[data-size="4"] button { font-size: clamp(20px, 7vmin, 34px); }
+.tblGrid[data-size="5"] button { font-size: clamp(17px, 5.6vmin, 28px); }
+.tblGrid[data-size="6"] button { font-size: clamp(14px, 4.6vmin, 23px); }
+.tblGrid[data-size="7"] button { font-size: clamp(12px, 3.9vmin, 20px); border-radius: 7px; }
+.tblGrid button.ok  { background: var(--accent-soft); }
+.tblGrid button.bad { background: var(--crit-soft); }
+.tblGrid button.red { color: var(--crit); }
+.anchorDot {
+  position: absolute; left: 50%; top: 50%; width: 9px; height: 9px;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  background: var(--crit); pointer-events: none; display: none;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.gridWrap.anchored .anchorDot { display: block; }
+.stageActions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.idlePane p { color: var(--ink2); max-width: 560px; margin: 6px auto 14px; text-align: center; }
+.targetChip {
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 650; font-size: var(--fs-h2);
+}
+.targetChip .cdot { width: 10px; height: 10px; border-radius: 50%; }
+/* ---------- result ---------- */
+.resultPane { text-align: center; }
+.hero { font-size: var(--fs-hero); font-weight: 650; margin: 6px 0 2px; line-height: 1.05; letter-spacing: -0.03em; }
+.hero small { font-size: var(--fs-h2); font-weight: 500; color: var(--ink2); letter-spacing: 0; }
+.resRow { display: flex; gap: 8px 18px; justify-content: center; flex-wrap: wrap; color: var(--ink2); margin-bottom: 6px; }
+.resRow b { color: var(--ink); font-weight: 600; }
+.seriesDone { margin: 10px 0 4px; }
+.seriesDone .tiles { margin-top: 10px; }
+.lvlNote { display: inline-block; border-radius: 10px; padding: 6px 14px; margin: 8px 0 2px; font-weight: 600; }
+.lvlNote.up { background: var(--good-soft); color: var(--good); }
+.lvlNote.down { background: var(--crit-soft); color: var(--crit); }
+.lvlNote.same { background: var(--accent-soft); color: var(--ink); }
+/* ---------- n-back ---------- */
+.nbTop { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.lvlPill {
+  border: 1px solid var(--border); border-radius: 999px; padding: 6px 16px;
+  font-variant-numeric: tabular-nums;
+}
+.lvlPill b { font-size: var(--fs-h2); }
+.nbGridWrap { width: min(100%, 340px); margin: 0 auto; }
+#nbGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#nbGrid .nc {
+  aspect-ratio: 1; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface);
+  transition: background .12s;
+}
+#nbGrid .nc.on { background: var(--accent); border-color: var(--accent); }
+.nbProgress { text-align: center; color: var(--ink2); margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+.nbAnswers { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+.nbAnswers button {
+  flex: 1; max-width: 220px; min-height: 56px; font-size: 1rem; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer;
+}
+.nbAnswers button:not(:disabled):hover { background: var(--accent-soft); }
+.nbAnswers button.hit  { background: var(--good-soft); border-color: var(--good); }
+.nbAnswers button.fa   { background: var(--crit-soft); border-color: var(--crit); }
+.nbAnswers button kbd {
+  font-family: inherit; font-size: var(--fs-micro); color: var(--muted); border: 1px solid var(--hairline);
+  border-radius: 5px; padding: 1px 6px; margin-left: 8px; vertical-align: 1px;
+}
+/* ---------- stats ---------- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.tile .lbl { font-size: var(--fs-micro); color: var(--ink2); }
+.tile .val { font-size: var(--fs-h1); font-weight: 650; margin-top: 2px; letter-spacing: -0.02em; }
+.tile .dlt { font-size: var(--fs-micro); margin-top: 2px; }
+.dlt.up   { color: var(--crit); }
+.dlt.down { color: var(--good); }
+#chartBox { position: relative; }
+#chartBox svg { width: 100%; height: auto; display: block; }
+.tt {
+  position: absolute; pointer-events: none; z-index: 5; display: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+  padding: 7px 10px; font-size: var(--fs-micro); color: var(--ink2);
+  box-shadow: 0 2px 10px rgba(0,0,0,.14); min-width: 120px;
+}
+.tt .v { color: var(--ink); font-weight: 650; font-size: 1rem; }
+#heat { display: grid; gap: 2px; width: min(100%, 420px); margin: 0 auto; }
+#heat .hc {
+  aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-micro); font-variant-numeric: tabular-nums; cursor: default;
+}
+#heat .hc:hover, #heat .hc:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+#heatBox { position: relative; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; color: var(--ink2); font-weight: 500; font-size: var(--fs-micro); padding: 6px 8px; border-bottom: 1px solid var(--baseline); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+td.num, th.num { text-align: right; }
+.okmark { color: var(--good); font-weight: 700; }
+.tscroll { overflow-x: auto; }
+.rowDel {
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  border-radius: 7px; width: 28px; height: 28px; line-height: 1; cursor: pointer;
+  font-size: 1rem; padding: 0;
+}
+.rowDel:hover { color: var(--crit); border-color: var(--crit); }
+.rowDel.armed { color: #fff; background: var(--crit); border-color: var(--crit); }
+td.delCol, th.delCol { width: 34px; text-align: center; }
+.dataRow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+details.help { margin-bottom: 16px; }
+details.help summary { cursor: pointer; color: var(--ink2); }
+details.help div { color: var(--ink2); padding: 8px 4px 0; max-width: 66ch; }
+#loading { text-align: center; color: var(--muted); padding: 60px 0; }
+/* ---------- mobile ---------- */
+@media (max-width: 560px) {
+  main { padding: 10px 10px 44px; }
+  header.top { padding: 10px 10px 0; }
+  .card { padding: 12px; border-radius: 12px; }
+  .brand h1 { font-size: 1.75rem; }
+  .controls { gap: 10px 14px; }
+  .hero { font-size: 2.5rem; }
+  .tile .val { font-size: 1.75rem; }
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .resRow { gap: 6px 12px; }
+  .exItem { padding: 12px; grid-template-columns: 36px 1fr auto; }
+  .exItem svg { width: 32px; height: 32px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="brand" id="navHome">
+    <h1 data-i18n="appTitle">FocusTrack</h1>
+    <p class="sub" data-i18n="appSub"></p>
+  </button>
+  <div class="topRight">
+    <span class="badge" id="storageBadge" hidden><span class="dot"></span><span id="storageBadgeText"></span></span>
+    <div class="seg" id="segLang" role="group" aria-label="Language">
+      <button data-v="ru" aria-pressed="true">РУС</button>
+      <button data-v="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div id="loading">…</div>
+
+  <!-- ========== Screen: exercise picker ========== -->
+  <section id="scr-home" hidden>
+    <nav class="exList">
+      <button class="exItem" data-ex="schulte">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="3" width="34" height="34" rx="5"/>
+          <path d="M14.3 3v34M25.7 3v34M3 14.3h34M3 25.7h34"/>
+        </svg>
+        <span class="exName" data-i18n="exSchulte"></span>
+        <span class="exWhat" data-i18n="exSchulteWhat"></span>
+        <span class="exHint" id="hintSchulte"></span>
+      </button>
+      <button class="exItem" data-ex="nback">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="3" width="34" height="34" rx="5"/>
+          <path d="M14.3 3v34M25.7 3v34M3 14.3h34M3 25.7h34"/>
+          <rect x="14.3" y="14.3" width="11.4" height="11.4" fill="currentColor" stroke="none" rx="2"/>
+        </svg>
+        <span class="exName" data-i18n="exNback"></span>
+        <span class="exWhat" data-i18n="exNbackWhat"></span>
+        <span class="exHint" id="hintNback"></span>
+      </button>
+      <button class="exItem" data-ex="gorbov">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="3" width="34" height="34" rx="5"/>
+          <path d="M20 3v34M3 20h34"/>
+          <circle cx="11.5" cy="11.5" r="3.4" fill="currentColor" stroke="none"/>
+          <circle cx="28.5" cy="28.5" r="3.4" fill="currentColor" stroke="none"/>
+        </svg>
+        <span class="exName" data-i18n="exGorbov"></span>
+        <span class="exWhat" data-i18n="exGorbovWhat"></span>
+        <span class="exHint" id="hintGorbov"></span>
+      </button>
+    </nav>
+    <div class="stageActions" style="justify-content:flex-start;">
+      <button class="ghost" id="btnToStats" data-i18n="statsBtn"></button>
+    </div>
+    <details class="help">
+      <summary data-i18n="howTitle"></summary>
+      <div id="howBody"></div>
+    </details>
+  </section>
+
+  <!-- ========== Screen: Schulte tables ========== -->
+  <section id="scr-schulte" hidden>
+    <div class="backRow"><button class="navBack">←&nbsp;<span data-i18n="back"></span></button></div>
+    <section class="card controls" id="schSettings">
+      <div class="ctl"><span class="lbl" data-i18n="setSize"></span>
+        <div class="seg" id="segSize" role="group">
+          <button data-v="4" aria-pressed="false">4×4</button>
+          <button data-v="5" aria-pressed="true">5×5</button>
+          <button data-v="6" aria-pressed="false">6×6</button>
+        </div>
+      </div>
+      <div class="ctl"><span class="lbl" data-i18n="setMode"></span>
+        <div class="seg" id="segMode" role="group">
+          <button data-v="click" aria-pressed="true" data-i18n="modeClick"></button>
+          <button data-v="gaze" aria-pressed="false" data-i18n="modeGaze"></button>
+        </div>
+      </div>
+      <label class="chk"><input type="checkbox" id="chkAnchor" checked> <span data-i18n="anchor"></span></label>
+    </section>
+    <section class="card" id="schStage">
+      <div id="hud" hidden>
+        <span class="hudLeft" id="hudLeft"></span>
+        <span class="hudRight"><span class="hudErr" id="hudErr"></span><span class="hudTimer" id="hudTimer"></span></span>
+      </div>
+      <div class="gridWrap" id="gridWrap" hidden>
+        <div class="tblGrid" id="grid" data-size="5"></div>
+        <div class="anchorDot"></div>
+      </div>
+      <div class="idlePane" id="schIdle">
+        <p data-i18n="idleText"></p>
+        <div class="stageActions">
+          <button class="primary" id="btnStart" data-i18n="start"></button>
+          <button class="ghost" id="btnSeries" data-i18n="series5"></button>
+        </div>
+      </div>
+      <div id="schRunActions" hidden style="text-align:center; margin-top:14px;">
+        <button class="primary" id="btnGazeFinish" hidden data-i18n="gazeFinish"></button>
+        <button class="ghost" id="btnAbort" data-i18n="abort"></button>
+      </div>
+      <div class="resultPane" id="schResult" hidden></div>
+    </section>
+  </section>
+
+  <!-- ========== Screen: red-black tables ========== -->
+  <section id="scr-gorbov" hidden>
+    <div class="backRow"><button class="navBack">←&nbsp;<span data-i18n="back"></span></button></div>
+    <section class="card" id="gStage">
+      <div id="gHud" hidden>
+        <span class="hudLeft" id="gHudLeft"></span>
+        <span class="hudRight"><span class="hudErr" id="gHudErr"></span><span class="hudTimer" id="gHudTimer"></span></span>
+      </div>
+      <div class="gridWrap" id="gGridWrap" hidden>
+        <div class="tblGrid" id="gGrid" data-size="7"></div>
+      </div>
+      <div class="idlePane" id="gIdle">
+        <p data-i18n="gIdleText"></p>
+        <div class="stageActions">
+          <button class="primary" id="gBtnStart" data-i18n="start"></button>
+        </div>
+      </div>
+      <div id="gRunActions" hidden style="text-align:center; margin-top:14px;">
+        <button class="ghost" id="gBtnAbort" data-i18n="abort"></button>
+      </div>
+      <div class="resultPane" id="gResult" hidden></div>
+    </section>
+  </section>
+
+  <!-- ========== Screen: dual n-back ========== -->
+  <section id="scr-nback" hidden>
+    <div class="backRow"><button class="navBack">←&nbsp;<span data-i18n="back"></span></button></div>
+    <section class="card" id="nbStage">
+      <div class="nbTop">
+        <span class="lvlPill"><span data-i18n="nbLevel"></span> <b id="nbLevelVal">2</b></span>
+        <div class="ctl"><span class="lbl" data-i18n="nbSet"></span>
+          <div class="seg" id="segNbSet" role="group">
+            <button data-v="ru" aria-pressed="true" data-i18n="nbSetRu"></button>
+            <button data-v="en" aria-pressed="false" data-i18n="nbSetEn"></button>
+          </div>
+        </div>
+      </div>
+      <div id="nbVoiceNote" class="note warn" hidden></div>
+      <div class="idlePane" id="nbIdle">
+        <p data-i18n="nbIdleText"></p>
+        <div class="stageActions">
+          <button class="primary" id="nbBtnStart" data-i18n="nbStart"></button>
+        </div>
+      </div>
+      <div id="nbRun" hidden>
+        <div class="nbGridWrap"><div id="nbGrid"></div></div>
+        <div class="nbProgress" id="nbProgress"></div>
+        <div class="nbAnswers">
+          <button id="nbBtnPos"><span data-i18n="nbAnswerPos"></span><kbd>A</kbd></button>
+          <button id="nbBtnAud"><span data-i18n="nbAnswerAud"></span><kbd>L</kbd></button>
+        </div>
+        <div style="text-align:center; margin-top:12px;">
+          <button class="ghost" id="nbBtnAbort" data-i18n="abort"></button>
+        </div>
+      </div>
+      <div class="resultPane" id="nbResult" hidden></div>
+    </section>
+  </section>
+
+  <!-- ========== Screen: statistics ========== -->
+  <section id="scr-stats" hidden>
+    <div class="backRow"><button class="navBack">←&nbsp;<span data-i18n="back"></span></button></div>
+    <section class="card controls" id="statFilters">
+      <div class="ctl"><span class="lbl" data-i18n="fEx"></span>
+        <div class="seg" id="fEx" role="group">
+          <button data-v="schulte" aria-pressed="true" data-i18n="exSchulte"></button>
+          <button data-v="nback" aria-pressed="false" data-i18n="exNback"></button>
+          <button data-v="gorbov" aria-pressed="false" data-i18n="exGorbov"></button>
+        </div>
+      </div>
+      <div class="ctl" id="fModeWrap"><span class="lbl" data-i18n="setMode"></span>
+        <div class="seg" id="fMode" role="group">
+          <button data-v="click" aria-pressed="true" data-i18n="modeClick"></button>
+          <button data-v="gaze" aria-pressed="false" data-i18n="modeGaze"></button>
+        </div>
+      </div>
+      <div class="ctl" id="fSizeWrap"><span class="lbl" data-i18n="setSize"></span>
+        <div class="seg" id="fSize" role="group">
+          <button data-v="4" aria-pressed="false">4×4</button>
+          <button data-v="5" aria-pressed="true">5×5</button>
+          <button data-v="6" aria-pressed="false">6×6</button>
+        </div>
+      </div>
+    </section>
+    <div id="compactNote" class="note" hidden></div>
+    <section class="card"><div class="tiles" id="kpi"></div></section>
+    <section class="card">
+      <h2 id="chartTitle"></h2>
+      <div id="chartBox"></div>
+    </section>
+    <section class="card" id="seriesCard">
+      <h2 data-i18n="seriesH"></h2>
+      <div class="tscroll" id="seriesBox"></div>
+      <p class="hint" data-i18n="seriesHint"></p>
+    </section>
+    <section class="card" id="heatCard">
+      <h2 data-i18n="heatH"></h2>
+      <div id="heatBox"><div id="heat"></div></div>
+      <p class="hint" id="heatHint"></p>
+    </section>
+    <section class="card">
+      <h2 data-i18n="attemptsH"></h2>
+      <div class="tscroll" id="attemptsBox"></div>
+    </section>
+    <section class="card">
+      <div class="dataRow">
+        <button class="ghost" id="btnExport" data-i18n="export"></button>
+        <button class="ghost" id="btnImport" data-i18n="importBtn"></button>
+        <button class="ghost" id="btnCopy" data-i18n="copyBtn"></button>
+        <button class="ghost" id="btnWipe" data-i18n="wipe"></button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+      <div id="importReport" class="note" hidden></div>
+      <p class="hint" id="storageNote"></p>
+    </section>
+  </section>
+</main>
+
+<script>
+'use strict';
+/* ================= 3. i18n ================= */
+const STR = {
+ru: {
+  appTitle: 'FocusTrack', appSub: 'Тренажёр внимания: три упражнения, измеримая динамика',
+  back: 'К упражнениям', statsBtn: 'Статистика',
+  howTitle: 'Как заниматься',
+  howBody: '<p><b>Таблицы Шульте.</b> Смотрите в центр таблицы (точка-якорь) и находите числа по порядку периферическим зрением, не сканируя строки. Норма для взрослого на 5×5 — примерно 25–40 секунд. В режиме кликов фиксируются ошибки и паузы на каждом числе; в режиме взгляда найдите все числа глазами и нажмите «Финиш».</p><p><b>Dual n-back.</b> Каждые 3 секунды загорается клетка и звучит буква. Отмечайте, если позиция или звук совпадают с тем, что было N шагов назад — по каждому каналу отдельно. Уровень N подстраивается сам по результатам сессий.</p><p><b>Красно-чёрные таблицы.</b> Находите попеременно чёрные числа по возрастанию и красные по убыванию: Ч1 → К24 → Ч2 → К23 … Это тренирует переключение внимания.</p><p>Показатели улучшаются в том, что вы тренируете; переноса на «общий интеллект» ждать не стоит.</p>',
+  exSchulte: 'Таблицы Шульте', exSchulteWhat: 'Устойчивость внимания и периферическое зрение',
+  exNback: 'Dual n-back', exNbackWhat: 'Рабочая память',
+  exGorbov: 'Красно-чёрные таблицы', exGorbovWhat: 'Переключение внимания',
+  hintBest: v => 'лучшее ' + v, hintLevel: v => 'уровень ' + v, hintNone: 'не начато',
+  setSize: 'Размер', setMode: 'Режим', modeClick: 'Клики', modeGaze: 'Взгляд',
+  anchor: 'Точка-якорь в центре',
+  idleText: 'Нажмите «Старт» — таблица появится, и время пойдёт сразу. В режиме кликов нажимайте числа по порядку; в режиме взгляда найдите все глазами и завершите пробелом.',
+  gIdleText: 'Находите попеременно чёрные числа по возрастанию и красные по убыванию: Ч1 → К24 → Ч2 → К23 … Подсказка со следующей целью всегда на экране.',
+  start: 'Старт', series5: 'Серия из 5', gazeFinish: 'Финиш (пробел)', abort: 'Прервать (Esc)',
+  hudFind: 'Найдите: ', hudGaze: 'Найдите все числа взглядом',
+  hudSeries: k => 'Серия: таблица ' + k + ' из 5 · ', hudErrors: 'Ошибки: ',
+  gBlack: 'чёрная', gRed: 'красная',
+  resErrors: 'Ошибки', resAvgInt: 'Средний интервал', resLongest: 'Дольше всего',
+  resNumber: 'число', resModeLbl: 'Режим', resGaze: 'взгляд — время без проверки',
+  seriesDone: 'Серия завершена!',
+  erLbl: 'ЭР — среднее время', vrLbl: 'ВР — врабатываемость', puLbl: 'ПУ — устойчивость',
+  next: k => 'Дальше — таблица ' + k + ' из 5 (пробел)',
+  abortSeries: 'Прервать серию', again: 'Ещё раз (пробел)', close: 'Закрыть',
+  nbLevel: 'Уровень N', nbSet: 'Звуки', nbSetRu: 'Русские', nbSetEn: 'English',
+  nbIdleText: 'Каждые 3 секунды загорается клетка и звучит буква. Отмечайте совпадение с тем, что было N шагов назад — отдельно по позиции и по звуку. Сессия: 20 + N² предъявлений.',
+  nbStart: 'Начать сессию', nbAnswerPos: 'Позиция', nbAnswerAud: 'Звук',
+  nbProgress: (k, n) => 'Стимул ' + k + ' из ' + n,
+  nbNoVoice: 'Синтез речи недоступен на этом устройстве, поэтому упражнение со звуком запустить нельзя. Включите голосовой движок в настройках системы (на Android — Google Text-to-Speech) и обновите страницу.',
+  nbNoVoiceSet: 'Голос для русских букв не найден. Можно переключиться на английский набор — он озвучится доступным голосом.',
+  nbSwitchSet: 'Переключить на English',
+  nbPos: 'Позиция', nbAud: 'Звук', nbHits: 'попадания', nbMiss: 'пропуски', nbFa: 'ложные',
+  nbLvlUp: n => 'Уровень повышен: N = ' + n,
+  nbLvlDown: n => 'Уровень понижен: N = ' + n,
+  nbLvlSame: n => 'Уровень сохранён: N = ' + n,
+  kpiEmpty: 'Пока нет данных для этого фильтра — пройдите первое упражнение.',
+  kpiAttempts: 'Попыток', kpiBest: 'Лучшее время', kpiAvg5: 'Среднее (последние 5)',
+  kpiErrAvg: 'Ошибки (в среднем)', kpiErr: 'Ошибки',
+  kpiSessions: 'Сессий', kpiLevel: 'Текущий уровень', kpiMaxLevel: 'Максимум', kpiAcc: 'Точность (последние 5)',
+  vsPrev5: d => d + ' с к прошлым 5',
+  chartTimeH: 'Среднее время по дням, секунды', chartLevelH: 'Средний уровень по дням',
+  chartEmpty: 'График появится после первых попыток.', ttBest: 'лучшее: ', ttN: 'попыток: ',
+  seriesH: 'Серии из 5: ЭР, ВР, ПУ',
+  seriesHint: 'ЭР — среднее время серии. ВР = Т1/ЭР (врабатываемость), ПУ = Т4/ЭР (устойчивость); значения не выше 1,00 отмечены ✓ — это хороший результат.',
+  seriesEmpty: 'Серий пока нет — нажмите «Серия из 5».',
+  thSDate: 'Дата', thT15: 'Т1–Т5, с', thER: 'ЭР, с', thVR: 'ВР', thPU: 'ПУ',
+  heatH: 'Тепловая карта: где вы ищете дольше',
+  heatHint: 'Чем насыщеннее клетка, тем больше среднее время поиска в этой позиции. Наведите курсор для деталей.',
+  heatNA: 'Тепловая карта доступна для режима кликов в таблицах.',
+  heatNeed: n => 'Карта появится после 3 попыток (сейчас: ' + n + ').',
+  heatCell: (r, c, n) => 'строка ' + r + ', колонка ' + c + ' · наблюдений: ' + n,
+  attemptsH: 'Последние попытки', attemptsEmpty: 'Здесь появится список попыток.',
+  thWhen: 'Когда', thTime: 'Время', thErr: 'Ошибки', thAvgInt: 'Ср. интервал', thMaxP: 'Макс. пауза',
+  thLevel: 'N', thScore: 'Итог', thPos: 'Позиция', thAud: 'Звук',
+  del: 'Удалить запись', delConfirm: 'Нажмите ещё раз для удаления',
+  fEx: 'Упражнение',
+  export: 'Экспорт (JSON)', importBtn: 'Импорт', copyBtn: 'Копировать данные',
+  wipe: 'Очистить историю', wipeConfirm: 'Точно удалить всё?',
+  storageLocal: 'Локальная история', storageCloud: 'История в Telegram',
+  storageErr: 'Ошибка сохранения', storagePending: 'Сохранение…',
+  noteLocal: 'Данные хранятся только в этом браузере. Экспортируйте их, чтобы перенести в Telegram или сделать копию.',
+  noteCloud: 'Данные хранятся в облаке Telegram и доступны на всех ваших устройствах.',
+  importOk: (a, d) => 'Импорт завершён: добавлено ' + a + ', пропущено дубликатов ' + d + '.',
+  importErr: e => 'Импорт отменён: ' + e + '. История не изменилась.',
+  errJson: 'файл не является корректным JSON',
+  errShape: 'структура файла не распознана',
+  errNewer: 'файл сделан в более новой версии приложения',
+  copied: 'Данные скопированы в буфер обмена.',
+  compactNote: 'История заполнена, поэтому самые старые попытки свёрнуты в месячные сводки: время и ошибки сохранены, подробные паузы — нет.',
+  unit: ' с', dec: ','
+},
+en: {
+  appTitle: 'FocusTrack', appSub: 'Attention trainer: three exercises, measurable progress',
+  back: 'All exercises', statsBtn: 'Statistics',
+  howTitle: 'How to practice',
+  howBody: '<p><b>Schulte tables.</b> Keep your eyes on the center (the anchor dot) and find the numbers in order using peripheral vision, without scanning row by row. The adult norm for 5×5 is about 25–40 seconds. Click mode records errors and the pause on every number; in gaze mode find them all with your eyes and press Finish.</p><p><b>Dual n-back.</b> Every 3 seconds a cell lights up and a letter is spoken. Flag it when the position or the sound matches what appeared N steps back — each channel separately. The level adapts to your results.</p><p><b>Red-black tables.</b> Alternate between black numbers ascending and red numbers descending: B1 → R24 → B2 → R23 … This trains attention switching.</p><p>You improve at what you measure; do not expect transfer to general intelligence.</p>',
+  exSchulte: 'Schulte tables', exSchulteWhat: 'Sustained attention and peripheral vision',
+  exNback: 'Dual n-back', exNbackWhat: 'Working memory',
+  exGorbov: 'Red-black tables', exGorbovWhat: 'Attention switching',
+  hintBest: v => 'best ' + v, hintLevel: v => 'level ' + v, hintNone: 'not started',
+  setSize: 'Size', setMode: 'Mode', modeClick: 'Clicks', modeGaze: 'Gaze',
+  anchor: 'Anchor dot in the center',
+  idleText: 'Press Start — the table appears and the clock starts immediately. In click mode tap the numbers in order; in gaze mode find them all with your eyes and finish with Space.',
+  gIdleText: 'Alternate black numbers ascending with red numbers descending: B1 → R24 → B2 → R23 … The next target is always shown on screen.',
+  start: 'Start', series5: 'Series of 5', gazeFinish: 'Finish (Space)', abort: 'Abort (Esc)',
+  hudFind: 'Find: ', hudGaze: 'Find all numbers with your eyes',
+  hudSeries: k => 'Series: table ' + k + ' of 5 · ', hudErrors: 'Errors: ',
+  gBlack: 'black', gRed: 'red',
+  resErrors: 'Errors', resAvgInt: 'Avg interval', resLongest: 'Longest',
+  resNumber: 'number', resModeLbl: 'Mode', resGaze: 'gaze — time without verification',
+  seriesDone: 'Series complete!',
+  erLbl: 'EF — average time', vrLbl: 'WU — warm-up', puLbl: 'ST — stability',
+  next: k => 'Next — table ' + k + ' of 5 (Space)',
+  abortSeries: 'Abort series', again: 'Again (Space)', close: 'Close',
+  nbLevel: 'Level N', nbSet: 'Sounds', nbSetRu: 'Русские', nbSetEn: 'English',
+  nbIdleText: 'Every 3 seconds a cell lights up and a letter is spoken. Flag a match with what appeared N steps back — position and sound separately. Session length: 20 + N² trials.',
+  nbStart: 'Start session', nbAnswerPos: 'Position', nbAnswerAud: 'Sound',
+  nbProgress: (k, n) => 'Trial ' + k + ' of ' + n,
+  nbNoVoice: 'Speech synthesis is unavailable on this device, so the audio exercise cannot start. Enable a voice engine in your system settings (on Android — Google Text-to-Speech) and reload the page.',
+  nbNoVoiceSet: 'No voice found for English letters. You can switch to the Russian set — it will use an available voice.',
+  nbSwitchSet: 'Switch to Русские',
+  nbPos: 'Position', nbAud: 'Sound', nbHits: 'hits', nbMiss: 'misses', nbFa: 'false alarms',
+  nbLvlUp: n => 'Level up: N = ' + n,
+  nbLvlDown: n => 'Level down: N = ' + n,
+  nbLvlSame: n => 'Level unchanged: N = ' + n,
+  kpiEmpty: 'No data for this filter yet — complete your first exercise.',
+  kpiAttempts: 'Attempts', kpiBest: 'Best time', kpiAvg5: 'Average (last 5)',
+  kpiErrAvg: 'Errors (average)', kpiErr: 'Errors',
+  kpiSessions: 'Sessions', kpiLevel: 'Current level', kpiMaxLevel: 'Best level', kpiAcc: 'Accuracy (last 5)',
+  vsPrev5: d => d + ' s vs previous 5',
+  chartTimeH: 'Average time by day, seconds', chartLevelH: 'Average level by day',
+  chartEmpty: 'The chart will appear after your first attempts.', ttBest: 'best: ', ttN: 'attempts: ',
+  seriesH: 'Series of 5: EF, WU, ST',
+  seriesHint: 'EF — average time of the series. WU = T1/EF (warm-up), ST = T4/EF (stability); values of 1.00 or below are marked ✓ — that is a good result.',
+  seriesEmpty: 'No series yet — press “Series of 5”.',
+  thSDate: 'Date', thT15: 'T1–T5, s', thER: 'EF, s', thVR: 'WU', thPU: 'ST',
+  heatH: 'Heatmap: where you search longer',
+  heatHint: 'The more saturated the cell, the longer the average search time at that position. Hover for details.',
+  heatNA: 'The heatmap is available for click mode in the table exercises.',
+  heatNeed: n => 'The map appears after 3 attempts (now: ' + n + ').',
+  heatCell: (r, c, n) => 'row ' + r + ', column ' + c + ' · samples: ' + n,
+  attemptsH: 'Recent attempts', attemptsEmpty: 'Your attempts will appear here.',
+  thWhen: 'When', thTime: 'Time', thErr: 'Errors', thAvgInt: 'Avg interval', thMaxP: 'Max pause',
+  thLevel: 'N', thScore: 'Score', thPos: 'Position', thAud: 'Sound',
+  del: 'Delete record', delConfirm: 'Press again to delete',
+  fEx: 'Exercise',
+  export: 'Export (JSON)', importBtn: 'Import', copyBtn: 'Copy data',
+  wipe: 'Clear history', wipeConfirm: 'Delete everything?',
+  storageLocal: 'Local history', storageCloud: 'Telegram history',
+  storageErr: 'Save failed', storagePending: 'Saving…',
+  noteLocal: 'Data is stored in this browser only. Export it to move to Telegram or keep a copy.',
+  noteCloud: 'Data is stored in Telegram cloud and available on all your devices.',
+  importOk: (a, d) => 'Import complete: added ' + a + ', duplicates skipped ' + d + '.',
+  importErr: e => 'Import cancelled: ' + e + '. History unchanged.',
+  errJson: 'the file is not valid JSON',
+  errShape: 'the file structure was not recognised',
+  errNewer: 'the file comes from a newer version of the app',
+  copied: 'Data copied to clipboard.',
+  compactNote: 'History is full, so the oldest attempts were folded into monthly summaries: time and errors are kept, detailed pauses are not.',
+  unit: ' s', dec: '.'
+}
+};
+
+/* ================= 4. Pure logic (DOM-free) ================= */
+const SCHEMA = 2;
+const $ = id => document.getElementById(id);
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+const pad = n => String(n).padStart(2, '0');
+const rnd = n => Math.floor(Math.random() * n);
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function newId() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+}
+const dayKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const monthKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth() + 1); };
+
+/* --- migration v1 -> v2 --- */
+function migrateV1(old) {
+  const records = [], sidMap = new Map();
+  (old.attempts || []).forEach(a => {
+    const id = newId() + '-' + records.length;
+    const r = { id, ts: a.ts, kind: 'schulte', mode: a.mode, size: a.size, t: a.t };
+    if (typeof a.err === 'number') r.err = a.err;
+    if (Array.isArray(a.presses)) r.presses = a.presses.map(p => [p.p, Math.round(p.dt * 1000)]);
+    if (a.sid) { r.sid = a.sid; if (!sidMap.has(a.sid)) sidMap.set(a.sid, []); sidMap.get(a.sid).push(id); }
+    records.push(r);
+  });
+  (old.series || []).forEach(s => {
+    records.push({
+      id: newId() + '-s' + records.length, ts: s.ts, kind: 'series', mode: s.mode, size: s.size,
+      times: s.times, er: s.er, vr: s.vr, pu: s.pu, attemptIds: sidMap.get(s.id) || []
+    });
+  });
+  // point each attempt's sid at the new series id
+  records.filter(r => r.kind === 'series').forEach(s => {
+    s.attemptIds.forEach(aid => { const a = records.find(r => r.id === aid); if (a) a.sid = s.id; });
+  });
+  return records;
+}
+function emptyDB() {
+  return { records: [], meta: { schemaVersion: SCHEMA, settings: {}, nback: { n: 2, failStreak: 0, updatedAt: 0 }, tombstones: [] } };
+}
+function normalizeMeta(m) {
+  const d = emptyDB().meta;
+  const meta = Object.assign(d, m || {});
+  meta.schemaVersion = SCHEMA;
+  meta.settings = Object.assign({ updatedAt: 0 }, meta.settings || {});
+  meta.nback = Object.assign({ n: 2, failStreak: 0, updatedAt: 0 }, meta.nback || {});
+  meta.tombstones = Array.isArray(meta.tombstones) ? meta.tombstones : [];
+  return meta;
+}
+
+/* --- validation & merge --- */
+function parseImport(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (e) { throw new Error('errJson'); }
+  if (!j || typeof j !== 'object') throw new Error('errShape');
+  if (j.schema && j.schema > SCHEMA) throw new Error('errNewer');
+  if (Array.isArray(j.attempts) || Array.isArray(j.series)) {   // legacy v1 export
+    return { records: migrateV1(j), meta: normalizeMeta(null) };
+  }
+  if (!Array.isArray(j.records)) throw new Error('errShape');
+  const ok = j.records.every(r => r && typeof r.id === 'string' && typeof r.ts === 'number' && typeof r.kind === 'string');
+  if (!ok) throw new Error('errShape');
+  const meta = normalizeMeta(j.meta);
+  if (Array.isArray(j.tombstones)) meta.tombstones = j.tombstones;
+  return { records: j.records, meta };
+}
+function mergeDB(L, R) {
+  const tomb = new Set([].concat(L.meta.tombstones, R.meta.tombstones));
+  const byId = new Map();
+  L.records.concat(R.records).forEach(r => { if (!tomb.has(r.id)) byId.set(r.id, r); });
+  const newer = (a, b) => ((b && b.updatedAt || 0) > (a && a.updatedAt || 0) ? b : a);
+  const meta = normalizeMeta({
+    settings: newer(L.meta.settings, R.meta.settings),
+    nback: newer(L.meta.nback, R.meta.nback),
+    tombstones: [...tomb]
+  });
+  const added = [...byId.keys()].filter(id => !L.records.some(r => r.id === id)).length;
+  return { db: { records: [...byId.values()].sort((a, b) => a.ts - b.ts), meta }, added };
+}
+
+/* --- dual n-back: generation, scoring, level --- */
+const NB_TRIAL_MS = 3000;
+const NB_LETTERS = {
+  ru: ['А', 'И', 'О', 'У', 'Ж', 'К', 'Ш', 'Р'],
+  en: ['C', 'H', 'K', 'L', 'Q', 'R', 'S', 'T']
+};
+const NB_POS = [0, 1, 2, 3, 5, 6, 7, 8];      // 3x3 without the center cell (it stays the fixation point)
+const NB_MATCH_P = 0.125, NB_LURE_P = 0.125;
+function nbTrialCount(n) { return 20 + n * n; }
+function genChannel(n, count, values) {
+  const seq = [];
+  for (let i = 0; i < count; i++) {
+    let v = values[rnd(values.length)];
+    if (i >= n) {
+      let back = null;
+      const r1 = Math.random(), r2 = Math.random();
+      if (r1 < NB_MATCH_P) back = n;
+      else if (r2 < NB_LURE_P && n > 1) {
+        const cand = [n - 1, n + 1, 2 * n].filter(b => b !== n && i - b >= 0 && seq[i - b] !== seq[i - n]);
+        if (cand.length) back = cand[rnd(cand.length)];
+      }
+      if (back !== null) v = seq[i - back];
+    }
+    seq.push(v);
+  }
+  return seq;
+}
+function genNback(n, set) {
+  const count = nbTrialCount(n);
+  return { n, count, pos: genChannel(n, count, NB_POS), aud: genChannel(n, count, NB_LETTERS[set].map((_, i) => i)) };
+}
+function scoreChannel(seq, n, answers) {
+  const s = { hit: 0, miss: 0, fa: 0 };
+  for (let i = n; i < seq.length; i++) {
+    const match = seq[i] === seq[i - n], pressed = !!answers[i];
+    if (match && pressed) s.hit++;
+    else if (match && !pressed) s.miss++;
+    else if (!match && pressed) s.fa++;
+  }
+  return s;
+}
+function scoreSession(trials, ansPos, ansAud) {
+  const pos = scoreChannel(trials.pos, trials.n, ansPos);
+  const aud = scoreChannel(trials.aud, trials.n, ansAud);
+  const scored = (trials.count - trials.n) * 2;
+  const errs = pos.miss + pos.fa + aud.miss + aud.fa;
+  const pct = scored > 0 ? Math.round((scored - errs) / scored * 100) : 0;
+  return { pos, aud, pct };
+}
+function nextLevel(n, failStreak, pct) {
+  if (pct >= 80) return { n: n + 1, failStreak: 0, change: 'up' };
+  if (pct < 50 && n > 1) {
+    if (failStreak >= 2) return { n: n - 1, failStreak: 0, change: 'down' };
+    return { n, failStreak: failStreak + 1, change: 'same' };
+  }
+  return { n, failStreak: 0, change: 'same' };
+}
+
+/* --- Gorbov-Schulte: layout and target sequence --- */
+function genGorbov() {
+  const cells = [];
+  for (let i = 1; i <= 25; i++) cells.push({ n: i, red: false });
+  for (let i = 1; i <= 24; i++) cells.push({ n: i, red: true });
+  return shuffle(cells);
+}
+function gorbovTarget(step) {           // step 0..48
+  return step % 2 === 0
+    ? { n: step / 2 + 1, red: false }
+    : { n: 24 - (step - 1) / 2, red: true };
+}
+const GORBOV_STEPS = 49;
+
+/* ================= 5. Storage adapters ================= */
+const LS_KEY = 'schulte.v2', LS_KEY_V1 = 'schulte.v1', LS_SET_V1 = 'schulte.settings.v1';
+const TG = (window.Telegram && window.Telegram.WebApp) || null;
+function isTelegram() {
+  return !!(TG && TG.initData && TG.initData.length > 0 && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9') && TG.CloudStorage);
+}
+function keyFor(r) {
+  const p = r.kind === 'nback' ? 'n:' : r.kind === 'series' ? 's:' : r.kind === 'agg' ? 'g:' : 'a:';
+  return p + r.id;
+}
+function LocalAdapter() {
+  let db = emptyDB(), st = 'idle';
+  const write = () => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(db)); st = 'idle'; }
+    catch (e) { st = 'error'; console.warn('local write failed', e); }
+  };
+  return {
+    kind: 'local',
+    init() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const j = JSON.parse(raw);
+          db = { records: Array.isArray(j.records) ? j.records : [], meta: normalizeMeta(j.meta) };
+        } else {
+          const v1 = localStorage.getItem(LS_KEY_V1);
+          if (v1) {                                   // migrate v1 -> v2
+            const old = JSON.parse(v1);
+            let set = {};
+            try { set = JSON.parse(localStorage.getItem(LS_SET_V1)) || {}; } catch (e) {}
+            db = { records: migrateV1(old), meta: normalizeMeta({ settings: Object.assign({ updatedAt: Date.now() }, set) }) };
+            write();
+            if (st === 'idle') { localStorage.removeItem(LS_KEY_V1); localStorage.removeItem(LS_SET_V1); }
+          }
+        }
+      } catch (e) { console.warn('local init failed', e); }
+      return Promise.resolve(db);
+    },
+    putRecord(r) { const i = db.records.findIndex(x => x.id === r.id); if (i >= 0) db.records[i] = r; else db.records.push(r); write(); },
+    deleteRecord(id) {
+      db.records = db.records.filter(r => r.id !== id);
+      if (!db.meta.tombstones.includes(id)) db.meta.tombstones.push(id);
+      write();
+    },
+    putMeta(m) { db.meta = m; write(); },
+    replaceAll(next) { db = next; write(); },
+    flush() { return Promise.resolve(); },
+    status() { return st; }
+  };
+}
+function CloudAdapter() {
+  const cs = TG.CloudStorage;
+  let db = emptyDB(), st = 'idle', queue = [], running = false, compacted = false;
+  const get = keys => new Promise(res => cs.getItems(keys, (err, vals) => res(err ? {} : vals)));
+  const keysP = () => new Promise(res => cs.getKeys((err, ks) => res(err ? [] : ks)));
+  const setP = (k, v) => new Promise(res => cs.setItem(k, v, err => res(!err)));
+  const delP = k => new Promise(res => cs.removeItem(k, err => res(!err)));
+  function enqueue(op) { queue = queue.filter(q => q.key !== op.key); queue.push(op); pump(); }
+  async function pump() {
+    if (running) return;
+    running = true; st = queue.length ? 'pending' : 'idle';
+    while (queue.length) {
+      const op = queue[0];
+      let ok = op.del ? await delP(op.key) : await setP(op.key, op.val);
+      if (!ok && !op.del && !compacted) { compacted = compact(); if (compacted) ok = await setP(op.key, op.val); }
+      if (!ok) {
+        st = 'error';
+        await new Promise(r => setTimeout(r, 2000));
+        if (!(op.del ? await delP(op.key) : await setP(op.key, op.val))) { queue.shift(); continue; }
+      }
+      queue.shift();
+    }
+    st = 'idle'; running = false;
+  }
+  function compact() {                       // fold the oldest records into monthly summaries
+    const olds = db.records.filter(r => r.kind !== 'agg').sort((a, b) => a.ts - b.ts).slice(0, 40);
+    if (olds.length < 10) return false;
+    const groups = new Map();
+    olds.forEach(r => {
+      const of = r.kind === 'series' ? null : r.kind;
+      if (!of) return;
+      const k = of + '|' + monthKey(r.ts);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    });
+    groups.forEach((rs, k) => {
+      const [of, month] = k.split('|');
+      const id = 'agg-' + of + '-' + month;
+      const times = rs.filter(r => typeof r.t === 'number').map(r => r.t);
+      const lvls = rs.filter(r => typeof r.n === 'number').map(r => r.n);
+      const agg = {
+        id, kind: 'agg', of, month, ts: rs[0].ts, n: rs.length,
+        errSum: rs.reduce((s, r) => s + (r.err || 0), 0)
+      };
+      if (times.length) { agg.meanT = +mean(times).toFixed(2); agg.bestT = Math.min(...times); }
+      if (lvls.length) { agg.meanN = +mean(lvls).toFixed(2); agg.maxN = Math.max(...lvls); }
+      db.records = db.records.filter(r => !rs.includes(r));
+      db.records.push(agg);
+      rs.forEach(r => enqueue({ key: keyFor(r), del: true }));
+      enqueue({ key: keyFor(agg), val: JSON.stringify(agg) });
+    });
+    db.meta.compacted = true;
+    enqueue({ key: 'meta', val: JSON.stringify(db.meta) });
+    return true;
+  }
+  return {
+    kind: 'cloud',
+    async init() {
+      const keys = await keysP();
+      if (!keys.length) return db;
+      const vals = await get(keys);
+      const recs = [];
+      let meta = null, tomb = [];
+      Object.keys(vals).forEach(k => {
+        const raw = vals[k];
+        if (!raw) return;
+        try {
+          const j = JSON.parse(raw);
+          if (k === 'meta') meta = j;
+          else if (k.indexOf('tomb') === 0) tomb = tomb.concat(j);
+          else if (j && j.id) recs.push(j);
+        } catch (e) { console.warn('skip corrupt key', k); }
+      });
+      db = { records: recs.sort((a, b) => a.ts - b.ts), meta: normalizeMeta(meta) };
+      if (tomb.length) db.meta.tombstones = [...new Set(db.meta.tombstones.concat(tomb))];
+      db.records = db.records.filter(r => !db.meta.tombstones.includes(r.id));
+      return db;
+    },
+    putRecord(r) {
+      const i = db.records.findIndex(x => x.id === r.id);
+      if (i >= 0) db.records[i] = r; else db.records.push(r);
+      enqueue({ key: keyFor(r), val: JSON.stringify(r) });
+    },
+    deleteRecord(id) {
+      const r = db.records.find(x => x.id === id);
+      db.records = db.records.filter(x => x.id !== id);
+      if (!db.meta.tombstones.includes(id)) db.meta.tombstones.push(id);
+      if (r) enqueue({ key: keyFor(r), del: true });
+      const t = db.meta.tombstones;
+      for (let i = 0, k = 0; i < t.length; i += 120, k++) {
+        enqueue({ key: k ? 'tomb:' + k : 'tomb', val: JSON.stringify(t.slice(i, i + 120)) });
+      }
+    },
+    putMeta(m) { db.meta = m; enqueue({ key: 'meta', val: JSON.stringify(m) }); },
+    replaceAll(next) {
+      const oldKeys = db.records.map(keyFor);
+      db = next;
+      oldKeys.forEach(k => { if (!db.records.some(r => keyFor(r) === k)) enqueue({ key: k, del: true }); });
+      db.records.forEach(r => enqueue({ key: keyFor(r), val: JSON.stringify(r) }));
+      this.putMeta(db.meta);
+    },
+    flush() { return new Promise(res => { const i = setInterval(() => { if (!queue.length && !running) { clearInterval(i); res(); } }, 60); }); },
+    status() { return st; }
+  };
+}
+</script>
+<script>
+'use strict';
+/* ================= 6. View state & helpers ================= */
+let DB = emptyDB(), ADP = null, LANG = 'ru', SCREEN = 'home';
+const S = () => DB.meta.settings;
+const t = k => STR[LANG][k];
+const fmtS = x => (Math.abs(x) >= 100 ? x.toFixed(0) : x.toFixed(1)).replace('.', t('dec'));
+const fmtSU = x => fmtS(x) + t('unit');
+const fmtDay = ts => { const d = new Date(ts); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); };
+const fmtDT = ts => { const d = new Date(ts); return fmtDay(ts) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+
+function saveSettings(patch) { Object.assign(S(), patch, { updatedAt: Date.now() }); ADP.putMeta(DB.meta); }
+function saveNbackState(n, failStreak) { DB.meta.nback = { n, failStreak, updatedAt: Date.now() }; ADP.putMeta(DB.meta); }
+function addRecord(r) { ADP.putRecord(r); }
+function delRecord(id) {
+  const r = DB.records.find(x => x.id === id);
+  if (r && r.sid) ADP.deleteRecord(r.sid);
+  if (r && r.kind === 'series' && Array.isArray(r.attemptIds)) {
+    // the series record goes; its attempts stay as standalone records
+    r.attemptIds.forEach(aid => { const a = DB.records.find(x => x.id === aid); if (a) { delete a.sid; ADP.putRecord(a); } });
+  }
+  ADP.deleteRecord(id);
+  renderStats(); renderHome();
+}
+function segInit(el, val, cb) {
+  const btns = [...el.querySelectorAll('button')];
+  const set = v => btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(v))));
+  set(val);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || el.classList.contains('locked')) return;
+    set(b.dataset.v); cb(b.dataset.v);
+  });
+  return set;
+}
+function armButton(btn, texts, onConfirm) {
+  if (btn.dataset.armed) { delete btn.dataset.armed; texts.disarm(btn); onConfirm(); }
+  else {
+    btn.dataset.armed = '1'; texts.arm(btn);
+    setTimeout(() => { if (btn.isConnected && btn.dataset.armed) { delete btn.dataset.armed; texts.disarm(btn); } }, 3500);
+  }
+}
+function mkBtn(cls, text, fn) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = text; b.addEventListener('click', fn);
+  return b;
+}
+function chip(lbl, val) {
+  const s = document.createElement('span');
+  s.append(lbl + ': ');
+  const b = document.createElement('b'); b.textContent = val; s.append(b);
+  return s;
+}
+function tile(lbl, val, delta) {
+  const d = document.createElement('div'); d.className = 'tile';
+  const dl = document.createElement('div'); dl.className = 'lbl'; dl.textContent = lbl;
+  const dv = document.createElement('div'); dv.className = 'val'; dv.textContent = val;
+  d.append(dl, dv);
+  if (delta) d.append(delta);
+  return d;
+}
+
+/* ================= 7. Routing ================= */
+const SCREENS = ['home', 'schulte', 'gorbov', 'nback', 'stats'];
+function go(name) {
+  if (SCREEN === 'schulte') schAbort(); else if (SCREEN === 'gorbov') gAbort(); else if (SCREEN === 'nback') nbAbort();
+  SCREEN = name;
+  SCREENS.forEach(s => { $('scr-' + s).hidden = s !== name; });
+  if (name === 'stats') renderStats();
+  if (name === 'home') renderHome();
+  if (name === 'nback') nbEnter();
+  window.scrollTo(0, 0);
+}
+$('navHome').addEventListener('click', () => go('home'));
+$('btnToStats').addEventListener('click', () => go('stats'));
+document.querySelectorAll('.navBack').forEach(b => b.addEventListener('click', () => go('home')));
+document.querySelectorAll('.exItem').forEach(b => b.addEventListener('click', () => go(b.dataset.ex)));
+
+/* ================= 8. Language ================= */
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.title = t('appTitle');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $('howBody').innerHTML = t('howBody');
+  $('storageNote').textContent = ADP && ADP.kind === 'cloud' ? t('noteCloud') : t('noteLocal');
+  if (!S().nbSet) {   // letter set never chosen explicitly: it follows the interface language
+    document.querySelectorAll('#segNbSet button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === LANG)));
+    if (SCREEN === 'nback') nbCheckVoice();
+  }
+  updateStorageBadge();
+  renderHome();
+  if (SCREEN === 'stats') renderStats();
+}
+
+/* ================= 9. Home screen ================= */
+function lastOf(kind) {
+  const rs = DB.records.filter(r => r.kind === kind);
+  return rs.length ? rs[rs.length - 1] : null;
+}
+function renderHome() {
+  const sch = DB.records.filter(r => r.kind === 'schulte');
+  const gor = DB.records.filter(r => r.kind === 'gorbov');
+  $('hintSchulte').textContent = sch.length ? t('hintBest')(fmtSU(Math.min(...sch.map(r => r.t)))) : t('hintNone');
+  $('hintGorbov').textContent = gor.length ? t('hintBest')(fmtSU(Math.min(...gor.map(r => r.t)))) : t('hintNone');
+  const hasNb = DB.records.some(r => r.kind === 'nback');
+  $('hintNback').textContent = hasNb ? t('hintLevel')(DB.meta.nback.n) : t('hintNone');
+}
+function updateStorageBadge() {
+  const b = $('storageBadge'), txt = $('storageBadgeText');
+  if (!ADP) { b.hidden = true; return; }
+  b.hidden = false;
+  const st = ADP.status();
+  b.className = 'badge' + (ADP.kind === 'cloud' ? ' cloud' : '') + (st === 'error' ? ' err' : '');
+  txt.textContent = st === 'error' ? t('storageErr') : st === 'pending' ? t('storagePending')
+    : (ADP.kind === 'cloud' ? t('storageCloud') : t('storageLocal'));
+}
+setInterval(updateStorageBadge, 1500);
+
+/* ================= 10. Schulte tables ================= */
+const SG = { phase: 'idle', run: null, series: null };
+function schPhase(p) {
+  SG.phase = p;
+  $('hud').hidden = p !== 'running';
+  $('gridWrap').hidden = p !== 'running';
+  $('schIdle').hidden = p !== 'idle';
+  $('schRunActions').hidden = p !== 'running';
+  $('schResult').hidden = p !== 'done';
+  $('schSettings').querySelectorAll('.seg').forEach(s => s.classList.toggle('locked', p === 'running'));
+  $('chkAnchor').disabled = p === 'running';
+}
+function schBegin() {
+  const size = S().size || 5, mode = S().mode || 'click', n = size * size;
+  const order = shuffle(Array.from({ length: n }, (_, i) => i + 1));
+  SG.run = { size, mode, next: 1, errors: 0, presses: [], t0: performance.now(), tPrev: performance.now() };
+  const grid = $('grid');
+  grid.dataset.size = size;
+  grid.style.gridTemplateColumns = 'repeat(' + size + ', 1fr)';
+  grid.replaceChildren(...order.map((num, idx) => {
+    const b = document.createElement('button');
+    b.textContent = num; b.dataset.n = num; b.dataset.p = idx;
+    return b;
+  }));
+  $('gridWrap').classList.toggle('anchored', S().anchor !== false);
+  $('btnGazeFinish').hidden = mode !== 'gaze';
+  $('hudErr').textContent = mode === 'click' ? t('hudErrors') + '0' : '';
+  schHud();
+  schPhase('running');
+  SG.run.timer = setInterval(() => { $('hudTimer').textContent = fmtSU((performance.now() - SG.run.t0) / 1000); }, 100);
+  $('hudTimer').textContent = fmtSU(0);
+}
+function schHud() {
+  const pre = SG.series ? t('hudSeries')(SG.series.times.length + 1) : '';
+  const el = $('hudLeft'); el.replaceChildren();
+  if (SG.run.mode === 'click') {
+    el.append(pre + t('hudFind'));
+    const b = document.createElement('b'); b.textContent = SG.run.next; el.append(b);
+  } else el.append(pre + t('hudGaze'));
+}
+function flash(el, cls, ms) { el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); }
+$('grid').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || SG.phase !== 'running' || SG.run.mode !== 'click') return;
+  const now = performance.now();
+  if (+b.dataset.n === SG.run.next) {
+    SG.run.presses.push([+b.dataset.p, Math.round(now - SG.run.tPrev)]);
+    SG.run.tPrev = now; SG.run.next++;
+    flash(b, 'ok', 150);
+    if (SG.run.next > SG.run.size * SG.run.size) schFinish(now); else schHud();
+  } else {
+    SG.run.errors++;
+    $('hudErr').textContent = t('hudErrors') + SG.run.errors;
+    flash(b, 'bad', 250);
+  }
+});
+function schFinish(now) {
+  clearInterval(SG.run.timer);
+  const rec = {
+    id: newId(), ts: Date.now(), kind: 'schulte', mode: SG.run.mode, size: SG.run.size,
+    t: +((now - SG.run.t0) / 1000).toFixed(2)
+  };
+  if (SG.run.mode === 'click') { rec.err = SG.run.errors; rec.presses = SG.run.presses; }
+  let series = null;
+  if (SG.series) {
+    SG.series.times.push(rec.t); SG.series.ids.push(rec.id);
+    if (SG.series.times.length === 5) {
+      const T = SG.series.times, er = mean(T);
+      series = {
+        id: newId(), ts: Date.now(), kind: 'series', mode: rec.mode, size: rec.size,
+        times: T.map(x => +x.toFixed(2)), er: +er.toFixed(2),
+        vr: er > 0 ? +(T[0] / er).toFixed(2) : 0, pu: er > 0 ? +(T[3] / er).toFixed(2) : 0,
+        attemptIds: SG.series.ids.slice()
+      };
+      rec.sid = series.id;
+      SG.series.ids.forEach(aid => {
+        const a = DB.records.find(x => x.id === aid);
+        if (a && !a.sid) { a.sid = series.id; ADP.putRecord(a); }
+      });
+    }
+  }
+  addRecord(rec);
+  if (series) addRecord(series);
+  schResult(rec, series);
+  renderHome();
+}
+function schAbort() { if (SG.run) clearInterval(SG.run.timer); SG.run = null; SG.series = null; schPhase('idle'); }
+function schResult(rec, series) {
+  const panel = $('schResult'); panel.replaceChildren();
+  const hero = document.createElement('div'); hero.className = 'hero';
+  hero.append(fmtS(rec.t));
+  const sm = document.createElement('small'); sm.textContent = t('unit'); hero.append(sm);
+  panel.append(hero);
+  const row = document.createElement('div'); row.className = 'resRow';
+  if (rec.mode === 'click') {
+    row.append(chip(t('resErrors'), rec.err));
+    const dts = rec.presses.map(p => p[1] / 1000);
+    row.append(chip(t('resAvgInt'), fmtSU(mean(dts))));
+    let mi = 0; dts.forEach((d, i) => { if (d > dts[mi]) mi = i; });
+    row.append(chip(t('resLongest'), fmtSU(dts[mi]) + ' (' + t('resNumber') + ' ' + (mi + 1) + ')'));
+  } else row.append(chip(t('resModeLbl'), t('resGaze')));
+  panel.append(row);
+  if (series) {
+    const sd = document.createElement('div'); sd.className = 'seriesDone';
+    const h = document.createElement('div'); h.textContent = t('seriesDone'); h.style.fontWeight = '600';
+    sd.append(h);
+    const tl = document.createElement('div'); tl.className = 'tiles';
+    [[t('erLbl'), fmtSU(series.er)],
+     [t('vrLbl'), fmtS(series.vr) + (series.vr <= 1 ? ' ✓' : '')],
+     [t('puLbl'), fmtS(series.pu) + (series.pu <= 1 ? ' ✓' : '')]].forEach(p => tl.append(tile(p[0], p[1])));
+    sd.append(tl); panel.append(sd);
+    SG.series = null;
+  }
+  const acts = document.createElement('div'); acts.className = 'stageActions';
+  if (SG.series) {
+    acts.append(mkBtn('primary', t('next')(SG.series.times.length + 1), schBegin));
+    acts.append(mkBtn('ghost', t('abortSeries'), schAbort));
+  } else {
+    acts.append(mkBtn('primary', t('again'), schBegin));
+    acts.append(mkBtn('ghost', t('series5'), schSeries));
+    acts.append(mkBtn('ghost', t('close'), () => schPhase('idle')));
+  }
+  panel.append(acts);
+  schPhase('done');
+}
+function schSeries() { SG.series = { times: [], ids: [] }; schBegin(); }
+$('btnStart').addEventListener('click', () => { SG.series = null; schBegin(); });
+$('btnSeries').addEventListener('click', schSeries);
+$('btnAbort').addEventListener('click', schAbort);
+$('btnGazeFinish').addEventListener('click', () => { if (SG.phase === 'running' && SG.run.mode === 'gaze') schFinish(performance.now()); });
+
+/* ================= 11. Red-black tables (Gorbov-Schulte) ================= */
+const GG = { phase: 'idle', run: null };
+function gPhase(p) {
+  GG.phase = p;
+  $('gHud').hidden = p !== 'running';
+  $('gGridWrap').hidden = p !== 'running';
+  $('gIdle').hidden = p !== 'idle';
+  $('gRunActions').hidden = p !== 'running';
+  $('gResult').hidden = p !== 'done';
+}
+function gBegin() {
+  const cells = genGorbov();
+  GG.run = { cells, step: 0, errors: 0, presses: [], t0: performance.now(), tPrev: performance.now() };
+  const grid = $('gGrid');
+  grid.dataset.size = 7;
+  grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+  grid.replaceChildren(...cells.map((c, idx) => {
+    const b = document.createElement('button');
+    b.textContent = c.n; b.dataset.p = idx;
+    if (c.red) b.classList.add('red');
+    return b;
+  }));
+  $('gHudErr').textContent = t('hudErrors') + '0';
+  gHud();
+  gPhase('running');
+  GG.run.timer = setInterval(() => { $('gHudTimer').textContent = fmtSU((performance.now() - GG.run.t0) / 1000); }, 100);
+  $('gHudTimer').textContent = fmtSU(0);
+}
+function gHud() {
+  const tgt = gorbovTarget(GG.run.step);
+  const el = $('gHudLeft'); el.replaceChildren();
+  el.append(t('hudFind'));
+  const chipEl = document.createElement('span'); chipEl.className = 'targetChip';
+  const dot = document.createElement('span'); dot.className = 'cdot';
+  dot.style.background = tgt.red ? 'var(--crit)' : 'var(--ink)';
+  chipEl.append(dot);
+  const label = document.createElement('span');
+  label.textContent = (tgt.red ? t('gRed') : t('gBlack')) + ' ' + tgt.n;
+  if (tgt.red) label.style.color = 'var(--crit)';
+  chipEl.append(label);
+  el.append(chipEl);
+}
+$('gGrid').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || GG.phase !== 'running') return;
+  const cell = GG.run.cells[+b.dataset.p], tgt = gorbovTarget(GG.run.step), now = performance.now();
+  if (cell.n === tgt.n && cell.red === tgt.red) {
+    GG.run.presses.push([+b.dataset.p, Math.round(now - GG.run.tPrev)]);
+    GG.run.tPrev = now; GG.run.step++;
+    flash(b, 'ok', 150);
+    if (GG.run.step >= GORBOV_STEPS) gFinish(now); else gHud();
+  } else {
+    GG.run.errors++;
+    $('gHudErr').textContent = t('hudErrors') + GG.run.errors;
+    flash(b, 'bad', 250);
+  }
+});
+function gFinish(now) {
+  clearInterval(GG.run.timer);
+  const rec = {
+    id: newId(), ts: Date.now(), kind: 'gorbov',
+    t: +((now - GG.run.t0) / 1000).toFixed(2), err: GG.run.errors, presses: GG.run.presses
+  };
+  addRecord(rec);
+  const panel = $('gResult'); panel.replaceChildren();
+  const hero = document.createElement('div'); hero.className = 'hero';
+  hero.append(fmtS(rec.t));
+  const sm = document.createElement('small'); sm.textContent = t('unit'); hero.append(sm);
+  panel.append(hero);
+  const row = document.createElement('div'); row.className = 'resRow';
+  row.append(chip(t('resErrors'), rec.err));
+  const dts = rec.presses.map(p => p[1] / 1000);
+  row.append(chip(t('resAvgInt'), fmtSU(mean(dts))));
+  let mi = 0; dts.forEach((d, i) => { if (d > dts[mi]) mi = i; });
+  const tg = gorbovTarget(mi);
+  row.append(chip(t('resLongest'), fmtSU(dts[mi]) + ' (' + (tg.red ? t('gRed') : t('gBlack')) + ' ' + tg.n + ')'));
+  panel.append(row);
+  const acts = document.createElement('div'); acts.className = 'stageActions';
+  acts.append(mkBtn('primary', t('again'), gBegin));
+  acts.append(mkBtn('ghost', t('close'), () => gPhase('idle')));
+  panel.append(acts);
+  gPhase('done');
+  renderHome();
+}
+function gAbort() { if (GG.run) clearInterval(GG.run.timer); GG.run = null; gPhase('idle'); }
+$('gBtnStart').addEventListener('click', gBegin);
+$('gBtnAbort').addEventListener('click', gAbort);
+
+/* ================= 12. Dual n-back ================= */
+const Speech = {
+  voices: [],
+  load() { try { this.voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch (e) { this.voices = []; } },
+  available() { return !!window.speechSynthesis; },
+  voiceFor(set) {
+    const pre = set === 'ru' ? 'ru' : 'en';
+    const m = this.voices.filter(v => (v.lang || '').toLowerCase().indexOf(pre) === 0);
+    return m.find(v => v.localService) || m[0] || null;
+  },
+  say(text, set) {
+    if (!this.available()) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const v = this.voiceFor(set);
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = set === 'ru' ? 'ru-RU' : 'en-US';
+      u.rate = 1; u.volume = 1;
+      speechSynthesis.speak(u);
+    } catch (e) { console.warn('speak failed', e); }
+  }
+};
+if (window.speechSynthesis) {
+  Speech.load();
+  speechSynthesis.onvoiceschanged = () => { Speech.load(); nbCheckVoice(); };
+}
+const NB = { phase: 'idle', run: null };
+function nbSet() { return S().nbSet || LANG; }
+function nbEnter() {
+  $('nbLevelVal').textContent = DB.meta.nback.n;
+  nbCheckVoice();
+  nbPhase('idle');
+}
+function nbCheckVoice() {
+  const note = $('nbVoiceNote'); note.replaceChildren(); note.hidden = true;
+  if (SCREEN !== 'nback') return true;
+  if (!Speech.available() || !Speech.voices.length) {
+    note.textContent = t('nbNoVoice'); note.hidden = false;
+    $('nbBtnStart').disabled = true;
+    return false;
+  }
+  $('nbBtnStart').disabled = false;
+  const set = nbSet();
+  if (!Speech.voiceFor(set)) {
+    const other = set === 'ru' ? 'en' : 'ru';
+    if (Speech.voiceFor(other)) {
+      note.append(t('nbNoVoiceSet') + ' ');
+      note.append(mkBtn('ghost', t('nbSwitchSet'), () => {
+        saveSettings({ nbSet: other });
+        document.querySelectorAll('#segNbSet button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === other)));
+        nbCheckVoice();
+      }));
+      note.hidden = false;
+    }
+  }
+  return true;
+}
+function nbPhase(p) {
+  NB.phase = p;
+  $('nbIdle').hidden = p !== 'idle';
+  $('nbRun').hidden = p !== 'running';
+  $('nbResult').hidden = p !== 'done';
+  $('segNbSet').classList.toggle('locked', p === 'running');
+}
+function nbBegin() {
+  if (!nbCheckVoice()) return;
+  const n = DB.meta.nback.n, set = nbSet();
+  const trials = genNback(n, set);
+  NB.run = { trials, set, idx: -1, ansPos: [], ansAud: [] };
+  const grid = $('nbGrid');
+  grid.replaceChildren(...Array.from({ length: 9 }, () => {
+    const d = document.createElement('div'); d.className = 'nc'; return d;
+  }));
+  nbPhase('running');
+  nbTick();
+  NB.run.timer = setInterval(nbTick, NB_TRIAL_MS);
+}
+function nbTick() {
+  const r = NB.run;
+  if (!r) return;
+  r.idx++;
+  if (r.idx >= r.trials.count) { nbFinish(); return; }
+  const cells = $('nbGrid').children;
+  [...cells].forEach(c => c.classList.remove('on'));
+  cells[r.trials.pos[r.idx]].classList.add('on');
+  Speech.say(NB_LETTERS[r.set][r.trials.aud[r.idx]], r.set);
+  $('nbBtnPos').className = ''; $('nbBtnAud').className = '';
+  $('nbProgress').textContent = t('nbProgress')(r.idx + 1, r.trials.count);
+  setTimeout(() => { if (NB.run === r && r.idx < r.trials.count) [...$('nbGrid').children].forEach(c => c.classList.remove('on')); }, NB_TRIAL_MS - 700);
+}
+function nbAnswer(ch) {
+  const r = NB.run;
+  if (!r || NB.phase !== 'running' || r.idx < 0) return;
+  const arr = ch === 'pos' ? r.ansPos : r.ansAud;
+  if (arr[r.idx]) return;
+  arr[r.idx] = true;
+  const seq = ch === 'pos' ? r.trials.pos : r.trials.aud;
+  const isMatch = r.idx >= r.trials.n && seq[r.idx] === seq[r.idx - r.trials.n];
+  $(ch === 'pos' ? 'nbBtnPos' : 'nbBtnAud').className = isMatch ? 'hit' : 'fa';
+}
+function nbFinish() {
+  const r = NB.run;
+  clearInterval(r.timer);
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  const sc = scoreSession(r.trials, r.ansPos, r.ansAud);
+  const rec = {
+    id: newId(), ts: Date.now(), kind: 'nback', n: r.trials.n, trials: r.trials.count,
+    pos: sc.pos, aud: sc.aud, pct: sc.pct, set: r.set
+  };
+  addRecord(rec);
+  const nxt = nextLevel(r.trials.n, DB.meta.nback.failStreak, sc.pct);
+  saveNbackState(nxt.n, nxt.failStreak);
+  $('nbLevelVal').textContent = nxt.n;
+  NB.run = null;
+  const panel = $('nbResult'); panel.replaceChildren();
+  const hero = document.createElement('div'); hero.className = 'hero';
+  hero.append(String(sc.pct));
+  const sm = document.createElement('small'); sm.textContent = '%'; hero.append(sm);
+  panel.append(hero);
+  const row = document.createElement('div'); row.className = 'resRow';
+  row.append(chip(t('nbPos'), sc.pos.hit + ' / ' + t('nbMiss') + ' ' + sc.pos.miss + ' / ' + t('nbFa') + ' ' + sc.pos.fa));
+  row.append(chip(t('nbAud'), sc.aud.hit + ' / ' + t('nbMiss') + ' ' + sc.aud.miss + ' / ' + t('nbFa') + ' ' + sc.aud.fa));
+  panel.append(row);
+  const note = document.createElement('div');
+  note.className = 'lvlNote ' + nxt.change;
+  note.textContent = nxt.change === 'up' ? t('nbLvlUp')(nxt.n) : nxt.change === 'down' ? t('nbLvlDown')(nxt.n) : t('nbLvlSame')(nxt.n);
+  panel.append(note);
+  const acts = document.createElement('div'); acts.className = 'stageActions';
+  acts.append(mkBtn('primary', t('again'), nbBegin));
+  acts.append(mkBtn('ghost', t('close'), () => nbPhase('idle')));
+  panel.append(acts);
+  nbPhase('done');
+  renderHome();
+}
+function nbAbort() {
+  if (NB.run) { clearInterval(NB.run.timer); NB.run = null; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  nbPhase('idle');
+}
+$('nbBtnStart').addEventListener('click', nbBegin);
+$('nbBtnAbort').addEventListener('click', nbAbort);
+$('nbBtnPos').addEventListener('click', () => nbAnswer('pos'));
+$('nbBtnAud').addEventListener('click', () => nbAnswer('aud'));
+document.addEventListener('visibilitychange', () => { if (document.hidden && NB.phase === 'running') nbAbort(); });
+
+/* ================= 13. Keyboard ================= */
+document.addEventListener('keydown', e => {
+  if (SCREEN === 'nback' && NB.phase === 'running') {
+    if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') { e.preventDefault(); nbAnswer('pos'); }
+    else if (e.key === 'l' || e.key === 'L' || e.key === 'д' || e.key === 'Д') { e.preventDefault(); nbAnswer('aud'); }
+    else if (e.key === 'Escape') nbAbort();
+    return;
+  }
+  if (e.code === 'Space') {
+    if (SCREEN === 'schulte') {
+      if (SG.phase === 'running' && SG.run.mode === 'gaze') { e.preventDefault(); schFinish(performance.now()); }
+      else if (SG.phase === 'done') { e.preventDefault(); schBegin(); }
+    } else if (SCREEN === 'gorbov' && GG.phase === 'done') { e.preventDefault(); gBegin(); }
+    else if (SCREEN === 'nback' && NB.phase === 'done') { e.preventDefault(); nbBegin(); }
+  } else if (e.key === 'Escape') {
+    if (SCREEN === 'schulte') { if (SG.phase === 'running') schAbort(); else if (SG.phase === 'done') { SG.series = null; schPhase('idle'); } }
+    else if (SCREEN === 'gorbov') { if (GG.phase === 'running') gAbort(); else if (GG.phase === 'done') gPhase('idle'); }
+  }
+});
+
+/* ================= 14. Statistics ================= */
+const RAMP_LIGHT = ['#cde2fb','#b7d3f6','#9ec5f4','#86b6ef','#6da7ec','#5598e7','#3987e5','#256abf','#1c5cab','#184f95','#104281','#0d366b'];
+const darkMq = matchMedia('(prefers-color-scheme: dark)');
+darkMq.addEventListener('change', () => { if (SCREEN === 'stats') renderStats(); });
+const isDark = () => document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && darkMq.matches);
+const ramp = () => isDark() ? [...RAMP_LIGHT].reverse() : RAMP_LIGHT;
+function inkFor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.55 ? '#0b0b0b' : '#ffffff';
+}
+function statFiltered() {
+  const ex = S().fEx || 'schulte';
+  if (ex === 'nback') return DB.records.filter(r => r.kind === 'nback');
+  if (ex === 'gorbov') return DB.records.filter(r => r.kind === 'gorbov');
+  return DB.records.filter(r => r.kind === 'schulte' && r.mode === (S().fMode || 'click') && r.size === (S().fSize || 5));
+}
+function renderStats() {
+  const ex = S().fEx || 'schulte';
+  $('fModeWrap').hidden = ex !== 'schulte';
+  $('fSizeWrap').hidden = ex !== 'schulte';
+  $('seriesCard').hidden = ex !== 'schulte';
+  $('heatCard').hidden = ex === 'nback';
+  $('chartTitle').textContent = ex === 'nback' ? t('chartLevelH') : t('chartTimeH');
+  $('compactNote').hidden = !DB.meta.compacted;
+  $('compactNote').textContent = t('compactNote');
+  const F = statFiltered();
+  renderKPI(F, ex);
+  renderChart(F, ex);
+  if (ex === 'schulte') renderSeries();
+  if (ex !== 'nback') renderHeat(F, ex);
+  renderAttempts(F, ex);
+}
+function renderKPI(F, ex) {
+  const box = $('kpi'); box.replaceChildren();
+  if (!F.length) {
+    const e = document.createElement('div'); e.className = 'empty';
+    e.style.gridColumn = '1 / -1'; e.textContent = t('kpiEmpty'); box.append(e);
+    return;
+  }
+  if (ex === 'nback') {
+    box.append(tile(t('kpiSessions'), String(F.length)));
+    box.append(tile(t('kpiLevel'), String(DB.meta.nback.n)));
+    box.append(tile(t('kpiMaxLevel'), String(Math.max(...F.map(r => r.n)))));
+    box.append(tile(t('kpiAcc'), Math.round(mean(F.slice(-5).map(r => r.pct))) + '%'));
+    return;
+  }
+  box.append(tile(t('kpiAttempts'), String(F.length)));
+  box.append(tile(t('kpiBest'), fmtSU(Math.min(...F.map(a => a.t)))));
+  const last5 = F.slice(-5).map(a => a.t);
+  let delta = null;
+  if (F.length >= 10) {
+    const d = mean(last5) - mean(F.slice(-10, -5).map(a => a.t));
+    delta = document.createElement('div');
+    delta.className = 'dlt ' + (d <= 0 ? 'down' : 'up');
+    delta.textContent = (d <= 0 ? '↓ ' : '↑ ') + t('vsPrev5')(fmtS(Math.abs(d)));
+  }
+  box.append(tile(t('kpiAvg5'), fmtSU(mean(last5)), delta));
+  const errs = F.filter(a => typeof a.err === 'number');
+  box.append(tile(errs.length ? t('kpiErrAvg') : t('kpiErr'), errs.length ? fmtS(mean(errs.map(a => a.err))) : '—'));
+}
+function renderChart(F, ex) {
+  const box = $('chartBox'); box.replaceChildren();
+  const isLvl = ex === 'nback';
+  const val = r => isLvl ? r.n : r.t;
+  const byDay = new Map();
+  F.forEach(r => {
+    const k = dayKey(r.ts);
+    if (!byDay.has(k)) byDay.set(k, { ts: r.ts, vals: [] });
+    byDay.get(k).vals.push(val(r));
+  });
+  const days = [...byDay.values()].sort((a, b) => a.ts - b.ts).slice(-30)
+    .map(d => ({ ts: d.ts, avg: mean(d.vals), best: isLvl ? Math.max(...d.vals) : Math.min(...d.vals), n: d.vals.length }));
+  if (!days.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = t('chartEmpty');
+    box.append(e); return;
+  }
+  const W = 720, H = 240, L = 44, R = 18, T = 14, B = 30;
+  const maxV = Math.max(...days.map(d => d.avg));
+  const steps = isLvl ? [1, 2, 5] : [5, 10, 15, 20, 30, 60, 120];
+  const step = steps.find(s => Math.ceil(maxV / s) <= 5) || (isLvl ? 10 : 300);
+  const yMax = Math.max(step, Math.ceil(maxV / step) * step);
+  const x0 = days[0].ts, x1 = days[days.length - 1].ts;
+  const X = ts => days.length === 1 ? L + (W - L - R) / 2 : L + (ts - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => T + (1 - v / yMax) * (H - T - B);
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  const el = (tag, at, txt) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in at) n.setAttribute(k, at[k]);
+    if (txt !== undefined) n.textContent = txt;
+    return n;
+  };
+  for (let v = 0; v <= yMax; v += step) {
+    svg.append(el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--hairline)', 'stroke-width': 1 }));
+    svg.append(el('text', { x: L - 8, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)' }, String(v)));
+  }
+  svg.append(el('line', { x1: L, x2: W - R, y1: Y(0), y2: Y(0), stroke: 'var(--baseline)', 'stroke-width': 1 }));
+  const nT = Math.min(6, days.length), tickIdx = new Set();
+  for (let i = 0; i < nT; i++) tickIdx.add(Math.round(i * (days.length - 1) / Math.max(1, nT - 1)));
+  tickIdx.forEach(i => svg.append(el('text', { x: X(days[i].ts), y: H - 8, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' }, fmtDay(days[i].ts))));
+  if (days.length > 1) {
+    const d = days.map((p, i) => (i ? 'L' : 'M') + X(p.ts).toFixed(1) + ' ' + Y(p.avg).toFixed(1)).join(' ');
+    svg.append(el('path', { d: d, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  }
+  days.forEach((d, i) => {
+    const c = el('circle', { cx: X(d.ts), cy: Y(d.avg), r: 4.5, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 });
+    c.setAttribute('tabindex', '0'); c.dataset.i = i; svg.append(c);
+  });
+  const last = days[days.length - 1];
+  const ly = Y(last.avg) - 10 < T ? Y(last.avg) + 22 : Y(last.avg) - 10;
+  svg.append(el('text', {
+    x: Math.min(X(last.ts), W - R - 4), y: ly,
+    'text-anchor': days.length === 1 ? 'middle' : 'end', 'font-size': 12, 'font-weight': 600, fill: 'var(--ink)'
+  }, fmtS(last.avg)));
+  const cross = el('line', { y1: T, y2: H - B, stroke: 'var(--baseline)', 'stroke-width': 1, visibility: 'hidden' });
+  svg.append(cross);
+  box.append(svg);
+  const tt = document.createElement('div'); tt.className = 'tt'; box.append(tt);
+  const showTT = i => {
+    const d = days[i];
+    tt.replaceChildren();
+    const v = document.createElement('div'); v.className = 'v';
+    v.textContent = isLvl ? fmtS(d.avg) : fmtSU(d.avg);
+    tt.append(v);
+    [fmtDay(d.ts), t('ttBest') + (isLvl ? fmtS(d.best) : fmtSU(d.best)), t('ttN') + d.n].forEach(s => {
+      const r2 = document.createElement('div'); r2.textContent = s; tt.append(r2);
+    });
+    const bw = box.clientWidth;
+    tt.style.display = 'block';
+    tt.style.left = Math.min(Math.max(X(d.ts) / W * bw + 12, 0), Math.max(0, bw - 150)) + 'px';
+    tt.style.top = (Y(d.avg) / H * box.clientHeight - 10) + 'px';
+    cross.setAttribute('x1', X(d.ts)); cross.setAttribute('x2', X(d.ts));
+    cross.setAttribute('visibility', 'visible');
+  };
+  const hideTT = () => { tt.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); };
+  svg.addEventListener('pointermove', e => {
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * W;
+    let best = 0;
+    days.forEach((d, i) => { if (Math.abs(X(d.ts) - mx) < Math.abs(X(days[best].ts) - mx)) best = i; });
+    showTT(best);
+  });
+  svg.addEventListener('pointerleave', hideTT);
+  svg.addEventListener('focusin', e => { if (e.target.dataset.i !== undefined) showTT(+e.target.dataset.i); });
+  svg.addEventListener('focusout', hideTT);
+}
+function delButton(onConfirm) {
+  const b = document.createElement('button');
+  b.className = 'rowDel'; b.textContent = '×';
+  b.title = t('del'); b.setAttribute('aria-label', t('del'));
+  b.addEventListener('click', () => armButton(b, {
+    arm: x => { x.classList.add('armed'); x.textContent = '?'; x.title = t('delConfirm'); },
+    disarm: x => { x.classList.remove('armed'); x.textContent = '×'; x.title = t('del'); }
+  }, onConfirm));
+  return b;
+}
+function renderSeries() {
+  const box = $('seriesBox'); box.replaceChildren();
+  const rows = DB.records.filter(r => r.kind === 'series' && r.mode === (S().fMode || 'click') && r.size === (S().fSize || 5)).slice(-8).reverse();
+  if (!rows.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = t('seriesEmpty');
+    box.append(e); return;
+  }
+  const tbl = document.createElement('table');
+  const th = document.createElement('tr');
+  [t('thSDate'), t('thT15'), t('thER'), t('thVR'), t('thPU'), ''].forEach((h, i) => {
+    const c = document.createElement('th');
+    if (i >= 2 && i <= 4) c.className = 'num';
+    if (i === 5) c.className = 'delCol';
+    c.textContent = h; th.append(c);
+  });
+  tbl.append(th);
+  rows.forEach(s => {
+    const tr = document.createElement('tr');
+    [fmtDT(s.ts), s.times.map(fmtS).join(' · '), fmtS(s.er)].forEach((v, i) => {
+      const td = document.createElement('td');
+      if (i === 2) td.className = 'num';
+      td.textContent = v; tr.append(td);
+    });
+    [s.vr, s.pu].forEach(v => {
+      const td = document.createElement('td'); td.className = 'num';
+      td.append(fmtS(v));
+      if (v <= 1) { const ok = document.createElement('span'); ok.className = 'okmark'; ok.textContent = ' ✓'; td.append(ok); }
+      tr.append(td);
+    });
+    const td = document.createElement('td'); td.className = 'delCol';
+    td.append(delButton(() => delRecord(s.id)));
+    tr.append(td); tbl.append(tr);
+  });
+  box.append(tbl);
+}
+function renderHeat(F, ex) {
+  const heat = $('heat'); heat.replaceChildren();
+  const old = $('heatBox').querySelector('.tt'); if (old) old.remove();
+  const size = ex === 'gorbov' ? 7 : (S().fSize || 5);
+  const withP = F.filter(a => Array.isArray(a.presses) && a.presses.length);
+  if (ex === 'schulte' && (S().fMode || 'click') !== 'click') { $('heatHint').textContent = t('heatNA'); return; }
+  if (withP.length < 3) { $('heatHint').textContent = t('heatNeed')(withP.length); return; }
+  $('heatHint').textContent = t('heatHint');
+  const n = size * size, sum = new Array(n).fill(0), cnt = new Array(n).fill(0);
+  withP.forEach(a => a.presses.forEach(p => { if (p[0] < n) { sum[p[0]] += p[1] / 1000; cnt[p[0]]++; } }));
+  const avg = sum.map((s, i) => cnt[i] ? s / cnt[i] : null);
+  const vals = avg.filter(v => v !== null);
+  if (!vals.length) { $('heatHint').textContent = t('heatNeed')(0); return; }
+  const lo = Math.min(...vals), hi = Math.max(...vals), RM = ramp();
+  heat.style.gridTemplateColumns = 'repeat(' + size + ', 1fr)';
+  const tt = document.createElement('div'); tt.className = 'tt'; $('heatBox').append(tt);
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div'); c.className = 'hc'; c.tabIndex = 0;
+    if (avg[i] === null) { c.style.background = 'var(--hairline)'; c.textContent = '·'; }
+    else {
+      const t01 = hi === lo ? 0.5 : (avg[i] - lo) / (hi - lo);
+      const col = RM[Math.min(RM.length - 1, Math.floor(t01 * RM.length))];
+      c.style.background = col; c.style.color = inkFor(col); c.textContent = fmtS(avg[i]);
+    }
+    const show = () => {
+      if (avg[i] === null) return;
+      tt.replaceChildren();
+      const v = document.createElement('div'); v.className = 'v'; v.textContent = fmtSU(avg[i]); tt.append(v);
+      const r2 = document.createElement('div');
+      r2.textContent = t('heatCell')(Math.floor(i / size) + 1, i % size + 1, cnt[i]);
+      tt.append(r2);
+      const hb = $('heatBox').getBoundingClientRect(), cb = c.getBoundingClientRect();
+      tt.style.display = 'block';
+      tt.style.left = Math.min(cb.left - hb.left + cb.width + 6, Math.max(0, hb.width - 175)) + 'px';
+      tt.style.top = (cb.top - hb.top) + 'px';
+    };
+    const hide = () => { tt.style.display = 'none'; };
+    c.addEventListener('pointerenter', show); c.addEventListener('pointerleave', hide);
+    c.addEventListener('focus', show); c.addEventListener('blur', hide);
+    heat.append(c);
+  }
+}
+function renderAttempts(F, ex) {
+  const box = $('attemptsBox'); box.replaceChildren();
+  if (!F.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = t('attemptsEmpty');
+    box.append(e); return;
+  }
+  const heads = ex === 'nback'
+    ? [t('thWhen'), t('thLevel'), t('thScore'), t('thPos'), t('thAud'), '']
+    : [t('thWhen'), t('thTime'), t('thErr'), t('thAvgInt'), t('thMaxP'), ''];
+  const tbl = document.createElement('table');
+  const th = document.createElement('tr');
+  heads.forEach((h, i) => {
+    const c = document.createElement('th');
+    if (i >= 1 && i <= 4) c.className = 'num';
+    if (i === 5) c.className = 'delCol';
+    c.textContent = h; th.append(c);
+  });
+  tbl.append(th);
+  F.slice(-15).reverse().forEach(a => {
+    const tr = document.createElement('tr');
+    let cells;
+    if (ex === 'nback') {
+      const acc = s => s.hit + '/' + (s.hit + s.miss) + (s.fa ? ' (+' + s.fa + ')' : '');
+      cells = [fmtDT(a.ts), String(a.n), a.pct + '%', acc(a.pos), acc(a.aud)];
+    } else {
+      let maxP = '—', avgP = '—', err = typeof a.err === 'number' ? String(a.err) : '—';
+      if (Array.isArray(a.presses) && a.presses.length) {
+        const dts = a.presses.map(p => p[1] / 1000);
+        avgP = fmtSU(mean(dts));
+        let mi = 0; dts.forEach((d, j) => { if (d > dts[mi]) mi = j; });
+        const label = ex === 'gorbov'
+          ? (gorbovTarget(mi).red ? t('gRed') : t('gBlack')) + ' ' + gorbovTarget(mi).n
+          : String(mi + 1);
+        maxP = fmtSU(dts[mi]) + ' (' + label + ')';
+      }
+      cells = [fmtDT(a.ts), fmtSU(a.t), err, avgP, maxP];
+    }
+    cells.forEach((v, i) => {
+      const td = document.createElement('td');
+      if (i >= 1) td.className = 'num';
+      td.textContent = v; tr.append(td);
+    });
+    const td = document.createElement('td'); td.className = 'delCol';
+    td.append(delButton(() => delRecord(a.id)));
+    tr.append(td); tbl.append(tr);
+  });
+  box.append(tbl);
+}
+
+/* ================= 15. Export / import / wipe ================= */
+function exportPayload() {
+  return JSON.stringify({
+    schema: SCHEMA, exportedAt: Date.now(),
+    records: DB.records, tombstones: DB.meta.tombstones,
+    meta: { settings: DB.meta.settings, nback: DB.meta.nback }
+  }, null, 2);
+}
+$('btnExport').addEventListener('click', () => {
+  const blob = new Blob([exportPayload()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'focustrack-data.json'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+$('btnCopy').addEventListener('click', async () => {
+  const rep = $('importReport');
+  try {
+    await navigator.clipboard.writeText(exportPayload());
+    rep.textContent = t('copied'); rep.className = 'note'; rep.hidden = false;
+  } catch (e) {
+    rep.textContent = String(e); rep.className = 'note warn'; rep.hidden = false;
+  }
+});
+$('btnImport').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const rep = $('importReport');
+  try {
+    const incoming = parseImport(await file.text());
+    const before = DB.records.length;
+    const res = mergeDB(DB, incoming);
+    ADP.replaceAll(res.db); DB = res.db;
+    const added = DB.records.length - before;
+    rep.textContent = t('importOk')(added, incoming.records.length - added);
+    rep.className = 'note'; rep.hidden = false;
+    renderStats(); renderHome();
+  } catch (err) {
+    const key = err && err.message && STR[LANG][err.message] ? err.message : 'errShape';
+    rep.textContent = t('importErr')(t(key));
+    rep.className = 'note warn'; rep.hidden = false;
+  }
+});
+$('btnWipe').addEventListener('click', () => {
+  armButton($('btnWipe'), {
+    arm: b => { b.textContent = t('wipeConfirm'); b.style.color = 'var(--crit)'; },
+    disarm: b => { b.textContent = t('wipe'); b.style.color = ''; }
+  }, () => {
+    const fresh = emptyDB();
+    fresh.meta.settings = Object.assign({}, DB.meta.settings, { updatedAt: Date.now() });
+    ADP.replaceAll(fresh); DB = fresh;
+    renderStats(); renderHome();
+  });
+});
+
+/* ================= 16. Boot ================= */
+async function boot() {
+  const tg = isTelegram();
+  if (TG) { try { TG.ready(); TG.expand(); } catch (e) {} }
+  ADP = tg ? CloudAdapter() : LocalAdapter();
+  try { DB = await ADP.init(); } catch (e) { console.warn('init failed', e); DB = emptyDB(); }
+  DB.meta = normalizeMeta(DB.meta);
+
+  LANG = S().lang || ((navigator.language || 'ru').toLowerCase().indexOf('ru') === 0 ? 'ru' : 'en');
+  if (TG && TG.colorScheme) {
+    document.documentElement.dataset.theme = TG.colorScheme;
+    if (TG.onEvent) TG.onEvent('themeChanged', () => {
+      document.documentElement.dataset.theme = TG.colorScheme;
+      if (SCREEN === 'stats') renderStats();
+    });
+  }
+  segInit($('segLang'), LANG, v => { LANG = v; saveSettings({ lang: v }); applyLang(); });
+  segInit($('segSize'), S().size || 5, v => saveSettings({ size: +v }));
+  segInit($('segMode'), S().mode || 'click', v => saveSettings({ mode: v }));
+  $('chkAnchor').checked = S().anchor !== false;
+  $('chkAnchor').addEventListener('change', e => saveSettings({ anchor: e.target.checked }));
+  segInit($('segNbSet'), S().nbSet || LANG, v => { saveSettings({ nbSet: v }); nbCheckVoice(); });
+  segInit($('fEx'), S().fEx || 'schulte', v => { saveSettings({ fEx: v }); renderStats(); });
+  segInit($('fMode'), S().fMode || 'click', v => { saveSettings({ fMode: v }); renderStats(); });
+  segInit($('fSize'), S().fSize || 5, v => { saveSettings({ fSize: +v }); renderStats(); });
+
+  $('loading').hidden = true;
+  applyLang();
+  go('home');
+}
+boot();
+</script>
+</body>
+</html>
