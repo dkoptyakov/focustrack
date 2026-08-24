@@ -872,9 +872,12 @@ const TG = (window.Telegram && window.Telegram.WebApp) || null;
 function isTelegram() {
   return !!(TG && TG.initData && TG.initData.length > 0 && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9') && TG.CloudStorage);
 }
+/* Telegram CloudStorage keys accept only A-Z a-z 0-9 _ - (1-128 chars):
+   anything else is rejected, so the separator must not be a colon */
+const safeKey = k => String(k).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 128);
 function keyFor(r) {
-  const p = r.kind === 'nback' ? 'n:' : r.kind === 'series' ? 's:' : r.kind === 'agg' ? 'g:' : 'a:';
-  return p + r.id;
+  const p = r.kind === 'nback' ? 'n_' : r.kind === 'series' ? 's_' : r.kind === 'agg' ? 'g_' : 'a_';
+  return safeKey(p + r.id);
 }
 function LocalAdapter() {
   let db = emptyDB(), st = 'idle';
@@ -919,10 +922,19 @@ function LocalAdapter() {
 function CloudAdapter() {
   const cs = TG.CloudStorage;
   let db = emptyDB(), st = 'idle', queue = [], running = false, compacted = false, failed = false;
-  const get = keys => new Promise(res => cs.getItems(keys, (err, vals) => res(err ? {} : vals)));
-  const keysP = () => new Promise(res => cs.getKeys((err, ks) => res(err ? [] : ks)));
-  const setP = (k, v) => new Promise(res => cs.setItem(k, v, err => res(!err)));
-  const delP = k => new Promise(res => cs.removeItem(k, err => res(!err)));
+  /* a CloudStorage call that never calls back would stall the queue forever,
+     so every call carries its own deadline */
+  const CS_TIMEOUT = 6000;
+  const call = (fn, label) => new Promise(res => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; clearTimeout(timer); res(v); } };
+    const timer = setTimeout(() => { console.warn('CloudStorage timed out:', label); finish(null); }, CS_TIMEOUT);
+    try { fn(finish); } catch (e) { console.warn('CloudStorage threw:', label, e); finish(null); }
+  });
+  const get = keys => call(cb => cs.getItems(keys, (err, vals) => cb(err ? {} : vals)), 'getItems').then(v => v || {});
+  const keysP = () => call(cb => cs.getKeys((err, ks) => cb(err ? [] : ks)), 'getKeys').then(v => v || []);
+  const setP = (k, v) => call(cb => cs.setItem(k, v, err => cb(!err)), 'setItem ' + k).then(v => v === true);
+  const delP = k => call(cb => cs.removeItem(k, err => cb(!err)), 'removeItem ' + k).then(v => v === true);
   function enqueue(op) { queue = queue.filter(q => q.key !== op.key); queue.push(op); pump(); }
   async function pump() {
     if (running) return;
@@ -1012,7 +1024,7 @@ function CloudAdapter() {
       if (r) enqueue({ key: keyFor(r), del: true });
       const t = db.meta.tombstones;
       for (let i = 0, k = 0; i < t.length; i += 120, k++) {
-        enqueue({ key: k ? 'tomb:' + k : 'tomb', val: JSON.stringify(t.slice(i, i + 120)) });
+        enqueue({ key: k ? 'tomb_' + k : 'tomb', val: JSON.stringify(t.slice(i, i + 120)) });
       }
     },
     putMeta(m) { db.meta = m; enqueue({ key: 'meta', val: JSON.stringify(m) }); },
