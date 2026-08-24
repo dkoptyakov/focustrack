@@ -157,7 +157,7 @@ button:disabled { opacity: .45; cursor: default; }
 .hudRight { display: flex; gap: 16px; align-items: baseline; margin-left: auto; }
 .hudTimer { font-variant-numeric: tabular-nums; color: var(--ink2); }
 .hudErr { color: var(--ink2); font-size: var(--fs-micro); }
-.gridWrap { position: relative; width: min(100%, 520px); margin: 0 auto; }
+.gridWrap { position: relative; width: min(100%, 520px, 58vh); margin: 0 auto; }
 .tblGrid { display: grid; gap: 6px; width: 100%; }
 .tblGrid button {
   aspect-ratio: 1; border: 1px solid var(--hairline); border-radius: 9px;
@@ -185,6 +185,18 @@ button:disabled { opacity: .45; cursor: default; }
   box-shadow: 0 0 0 2px var(--surface);
 }
 .gridWrap.anchored .anchorDot { display: block; }
+/* focus mode: while an exercise runs the chrome collapses, so the grid fits a
+   small window (Telegram Desktop opens one) without scrolling */
+body.running header.top,
+body.running .backRow,
+body.running #schSettings { display: none; }
+body.running main { padding: 10px 16px 16px; }
+/* the grid is square, so cap its width by the height left after the fixed chrome */
+body.running .gridWrap { width: min(100%, 520px, calc(100vh - 182px)); }
+body.running .nbGridWrap { width: min(100%, 340px, calc(100vh - 288px)); }
+body.running #segNbSet, body.running #segNbSet + .lbl, body.running .nbTop .ctl { display: none; }
+body.running .nbTop { margin-bottom: 8px; }
+body.running .nbProgress { margin: 8px 0 2px; }
 .stageActions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
 .idlePane p { color: var(--ink2); max-width: 560px; margin: 6px auto 14px; text-align: center; }
 .targetChip {
@@ -212,7 +224,7 @@ button:disabled { opacity: .45; cursor: default; }
   font-variant-numeric: tabular-nums;
 }
 .lvlPill b { font-size: var(--fs-h2); }
-.nbGridWrap { width: min(100%, 340px); margin: 0 auto; }
+.nbGridWrap { width: min(100%, 340px, 46vh); margin: 0 auto; }
 #nbGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 #nbGrid .nc {
   aspect-ratio: 1; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface);
@@ -276,7 +288,7 @@ details.help summary { cursor: pointer; color: var(--ink2); }
 details.help div { color: var(--ink2); padding: 8px 4px 0; max-width: 66ch; }
 #loading { text-align: center; color: var(--muted); padding: 60px 0; }
 /* ---------- mobile ---------- */
-@media (max-width: 560px) {
+@media (max-width: 480px) {
   main { padding: 10px 10px 44px; }
   header.top { padding: 10px 10px 0; }
   .card { padding: 12px; border-radius: 12px; }
@@ -1088,8 +1100,10 @@ setInterval(updateStorageBadge, 1500);
 
 /* ================= 10. Schulte tables ================= */
 const SG = { phase: 'idle', run: null, series: null };
+function setRunning(on) { document.body.classList.toggle('running', on); }
 function schPhase(p) {
   SG.phase = p;
+  setRunning(p === 'running');
   $('hud').hidden = p !== 'running';
   $('gridWrap').hidden = p !== 'running';
   $('schIdle').hidden = p !== 'idle';
@@ -1225,6 +1239,7 @@ $('btnGazeFinish').addEventListener('click', () => { if (SG.phase === 'running' 
 const GG = { phase: 'idle', run: null };
 function gPhase(p) {
   GG.phase = p;
+  setRunning(p === 'running');
   $('gHud').hidden = p !== 'running';
   $('gGridWrap').hidden = p !== 'running';
   $('gIdle').hidden = p !== 'idle';
@@ -1363,6 +1378,7 @@ function nbCheckVoice() {
 }
 function nbPhase(p) {
   NB.phase = p;
+  setRunning(p === 'running');
   $('nbIdle').hidden = p !== 'idle';
   $('nbRun').hidden = p !== 'running';
   $('nbResult').hidden = p !== 'done';
