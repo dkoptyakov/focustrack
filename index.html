@@ -918,7 +918,7 @@ function LocalAdapter() {
 }
 function CloudAdapter() {
   const cs = TG.CloudStorage;
-  let db = emptyDB(), st = 'idle', queue = [], running = false, compacted = false;
+  let db = emptyDB(), st = 'idle', queue = [], running = false, compacted = false, failed = false;
   const get = keys => new Promise(res => cs.getItems(keys, (err, vals) => res(err ? {} : vals)));
   const keysP = () => new Promise(res => cs.getKeys((err, ks) => res(err ? [] : ks)));
   const setP = (k, v) => new Promise(res => cs.setItem(k, v, err => res(!err)));
@@ -933,12 +933,18 @@ function CloudAdapter() {
       if (!ok && !op.del && !compacted) { compacted = compact(); if (compacted) ok = await setP(op.key, op.val); }
       if (!ok) {
         st = 'error';
-        await new Promise(r => setTimeout(r, 2000));
-        if (!(op.del ? await delP(op.key) : await setP(op.key, op.val))) { queue.shift(); continue; }
+        op.tries = (op.tries || 0) + 1;
+        if (op.tries < 4) {                       // keep the write, back off and retry
+          await new Promise(r => setTimeout(r, 800 * op.tries));
+          continue;
+        }
+        failed = true;                            // give up on this one, but say so
+        console.warn('cloud write failed', op.key);
       }
       queue.shift();
     }
-    st = 'idle'; running = false;
+    st = failed ? 'error' : 'idle';
+    running = false;
   }
   function compact() {                       // fold the oldest records into monthly summaries
     const olds = db.records.filter(r => r.kind !== 'agg').sort((a, b) => a.ts - b.ts).slice(0, 40);
@@ -1564,7 +1570,10 @@ const Sch = {
     if (+b.dataset.n === this.run.next) {
       this.run.presses.push([+b.dataset.p, Math.round(now - this.run.tPrev)]);
       this.run.tPrev = now; this.run.next++;
+      // confirm the press, but leave no trace: a lasting mark would map out the
+      // already-searched cells and take the load off peripheral vision
       b.classList.add('ok');
+      setTimeout(() => b.classList.remove('ok'), 140);
       if (this.run.next > n) { this.finish(now); return; }
       this.chip.textContent = this.run.next;
       stageProgress((this.run.next - 1) / n);
@@ -1659,6 +1668,7 @@ const Gor = {
       this.run.presses.push([+b.dataset.p, dt]);
       this.run.tPrev = now;
       b.classList.add('ok');
+      setTimeout(() => b.classList.remove('ok'), 140);
       const entry = el('div', tg.red ? 'red' : null);
       entry.append(el('span', null, (tg.red ? t('gRed') : t('gBlack')) + tg.n), el('em', null, fmtS(dt / 1000)));
       this.log.prepend(entry);
@@ -1831,8 +1841,16 @@ const Nb = {
 document.addEventListener('visibilitychange', () => { if (document.hidden && Nb.run) { Nb.abort(); go('pre'); } });
 
 /* ================= Result ================= */
+/* point the statistics filters at what was just practised, so the screen never
+   opens empty on an exercise the user did not just do */
+function focusStatsOn(rec) {
+  const patch = { fEx: rec.kind };
+  if (rec.kind === 'schulte') { patch.fMode = rec.mode; patch.fSize = rec.size; }
+  saveSettings(patch);
+}
 function showResult(rec, series, lvl) {
   const isNb = rec.kind === 'nback';
+  focusStatsOn(rec);
   const det = rec.kind === 'schulte' ? rec.size + '×' + rec.size + ' · ' + t(rec.mode === 'click' ? 'modeClick' : 'modeGaze')
     : rec.kind === 'gorbov' ? '7×7' : 'N = ' + rec.n;
   $('resCap').textContent = exName(rec.kind) + ' · ' + det;
