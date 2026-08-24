@@ -294,7 +294,10 @@ body.stage .targetChip { background: #F7F6F2; color: #16150F; border-color: tran
 .tblGrid button.redCell.bad { background: var(--bad-bg); color: var(--bad-ink); }
 .stageFoot { display: flex; align-items: center; gap: 12px; }
 .stageFoot .cap { color: var(--muted); }
-.stageFoot .btn { width: auto; margin-left: auto; min-height: 40px; padding: 9px 16px; font-size: 13px; }
+.stageFoot .btn { width: auto; min-height: 40px; padding: 9px 16px; font-size: 13px; white-space: nowrap; }
+.stageFoot .cap { white-space: nowrap; }
+@media (max-width: 560px) { .stageFoot .kb { display: none; } }
+.stageFoot .btn:first-of-type { margin-left: auto; }
 #countdown {
   position: fixed; inset: 0; z-index: 60;
   display: grid; place-items: center; background: var(--bg);
@@ -545,6 +548,7 @@ body.stage #nbGrid { width: min(100%, 340px, calc(100vh - 300px)); }
         <div class="progressLine" id="stageProgress"><i></i></div>
         <div class="stageFoot">
           <span class="cap" id="stageCount"></span>
+          <button class="btn" id="stageRestart"></button>
           <button class="btn" id="stageAbort"></button>
         </div>
       </div>
@@ -634,7 +638,7 @@ ru: {
   errSound: 'Звук на ошибку', haptics: 'Вибрация', countdown: 'Обратный отсчёт',
   soundLbl: 'Звуки', setRu: 'Русские', setEn: 'English',
   find: 'Найдите', findGaze: 'Найдите все числа взглядом',
-  errorsCap: 'Ошибки', gazeFinish: 'Финиш · пробел', abort: 'Прервать · Esc',
+  errorsCap: 'Ошибки', gazeFinish: 'Финиш · пробел', abort: 'Прервать', restart: 'Заново',
   foundOf: (k, n) => 'Найдено ' + k + ' из ' + n,
   moveOf: (k, n) => 'Ход ' + k + ' из ' + n,
   trialOf: (k, n) => 'Стимул ' + k + ' из ' + n,
@@ -723,7 +727,7 @@ en: {
   errSound: 'Sound on error', haptics: 'Vibration', countdown: 'Countdown',
   soundLbl: 'Sounds', setRu: 'Русские', setEn: 'English',
   find: 'Find', findGaze: 'Find every number with your eyes',
-  errorsCap: 'Errors', gazeFinish: 'Finish · space', abort: 'Abort · Esc',
+  errorsCap: 'Errors', gazeFinish: 'Finish · space', abort: 'Abort', restart: 'Restart',
   foundOf: (k, n) => 'Found ' + k + ' of ' + n,
   moveOf: (k, n) => 'Move ' + k + ' of ' + n,
   trialOf: (k, n) => 'Trial ' + k + ' of ' + n,
@@ -1619,6 +1623,11 @@ $('preStart').addEventListener('click', startExercise);
 $('preSecond').addEventListener('click', () => { Sch.series = { times: [], ids: [] }; Sch.begin(); });
 
 /* ================= Stage shell ================= */
+/* the keyboard hint rides along on a pointer device and steps aside on a phone */
+function footBtn(id, label, key) {
+  const b = $(id);
+  b.replaceChildren(document.createTextNode(label), el('span', 'kb', ' · ' + key));
+}
 function stageReset() {
   $('stageHead').replaceChildren();
   $('stageBody').replaceChildren();
@@ -1626,7 +1635,8 @@ function stageReset() {
   $('stageProgress').firstElementChild.style.transform = 'scaleX(0)';
   $('stageProgress').classList.remove('warm');
   $('stageCount').textContent = '';
-  $('stageAbort').textContent = t('abort');
+  footBtn('stageRestart', t('restart'), 'R');
+  footBtn('stageAbort', t('abort'), 'Esc');
 }
 function stageProgress(p, warm) {
   $('stageProgress').firstElementChild.style.transform = 'scaleX(' + Math.max(0, Math.min(1, p)) + ')';
@@ -1664,7 +1674,8 @@ function renderRails() {
   const kb = el('div');
   kb.style.marginTop = '26px';
   kb.append(el('span', 'cap', t('kbCap')));
-  [[t('kbStart'), 'Space'], [t('kbAbort'), 'Esc'], [EX === 'nback' ? t('nbPos') + ' / ' + t('nbAud') : t('kbSize'), EX === 'nback' ? 'A / L' : '4 / 5 / 6']]
+  [[t('kbStart'), 'Space'], [t('restart'), 'R'], [t('kbAbort'), 'Esc'],
+   [EX === 'nback' ? t('nbPos') + ' / ' + t('nbAud') : t('kbSize'), EX === 'nback' ? 'A / L' : '4 / 5 / 6']]
     .forEach(p => {
       const r = el('div', 'row');
       r.style.minHeight = '34px';
@@ -1708,6 +1719,13 @@ function renderRails() {
   }
 }
 $('stageAbort').addEventListener('click', () => { abortAll(); go('pre'); });
+/* start the same exercise over: the unfinished attempt is discarded, exactly as
+   an abort would, so a lost count never lands in the history */
+function restartCurrent() {
+  abortAll();
+  if (EX === 'schulte') Sch.begin(); else if (EX === 'gorbov') Gor.begin(); else Nb.begin();
+}
+$('stageRestart').addEventListener('click', restartCurrent);
 function abortAll() { cancelCountdown(); Sch.abort(); Gor.abort(); Nb.abort(); }
 
 /* ================= Schulte ================= */
@@ -2146,6 +2164,7 @@ document.addEventListener('keydown', e => {
   if (Nb.run) {
     if (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') { e.preventDefault(); Nb.answer('pos'); }
     else if (e.key === 'l' || e.key === 'L' || e.key === 'д' || e.key === 'Д') { e.preventDefault(); Nb.answer('aud'); }
+    else if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') { e.preventDefault(); restartCurrent(); }
     else if (e.key === 'Escape') { Nb.abort(); go('pre'); }
     return;
   }
@@ -2153,6 +2172,8 @@ document.addEventListener('keydown', e => {
     if (Sch.run && Sch.run.mode === 'gaze') { e.preventDefault(); Sch.finish(performance.now()); }
     else if (SCREEN === 'result') { e.preventDefault(); $('resAgain').click(); }
     else if (SCREEN === 'pre') { e.preventDefault(); $('preStart').click(); }
+  } else if ((e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') && SCREEN === 'stage') {
+    e.preventDefault(); restartCurrent();
   } else if (e.key === 'Escape') {
     if (SCREEN === 'stage') { abortAll(); go('pre'); }
     else if (SCREEN === 'result') go('home');
