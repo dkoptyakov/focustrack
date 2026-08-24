@@ -553,6 +553,7 @@ body.stage #nbGrid { width: min(100%, 340px, calc(100vh - 300px)); }
     <button class="back navBack">←&nbsp;<span data-i18n="back"></span></button>
     <h1 data-i18n="stats"></h1>
     <div class="chips sec" id="statChips"></div>
+    <div class="chips" id="statPeriod" style="margin-top:8px"></div>
     <div id="compactNote" class="plate sec" hidden></div>
     <div class="kpi sec" id="kpi"></div>
     <div class="sec"><span class="cap" id="chartCap"></span>
@@ -639,7 +640,12 @@ ru: {
   nbLvlSame: n => 'Уровень сохранён · N = ' + n,
   nbHits: 'попадания', nbMiss: 'пропуски', nbFa: 'ложные',
   chipClick: 'Клики', chipGaze: 'Взгляд',
-  kpiAttempts: 'Попыток', kpiBest: 'Лучшее', kpiAvg5: 'Среднее · 5', kpiErrAvg: 'Ошибки · ср.',
+  perDay: 'День', perWeek: 'Неделя', perMonth: 'Месяц', perYear: 'Год',
+  vsPrevPeriod: { day: 'ко вчера', week: 'к прошлой неделе', month: 'к прошлому месяцу', year: 'к прошлому году' },
+  periodEmpty: 'За этот период записей нет',
+  chartByAttempt: 'Время попыток за день, с', chartByWeek: 'Среднее время по неделям, с',
+  chartLevelWeek: 'Средний уровень по неделям', chartLevelAttempt: 'Уровень по сессиям за день',
+  kpiAttempts: 'Попыток', kpiBest: 'Лучшее', kpiAvg: 'Среднее', kpiErrAvg: 'Ошибки · ср.',
   kpiSessions: 'Сессий', kpiLevel: 'Уровень', kpiMaxLevel: 'Максимум', kpiAcc: 'Точность · 5',
   chartTime: 'Среднее время по дням, с', chartLevel: 'Средний уровень по дням',
   chartEmpty: 'График появится после первых попыток',
@@ -723,7 +729,12 @@ en: {
   nbLvlSame: n => 'Level unchanged · N = ' + n,
   nbHits: 'hits', nbMiss: 'misses', nbFa: 'false',
   chipClick: 'Clicks', chipGaze: 'Gaze',
-  kpiAttempts: 'Attempts', kpiBest: 'Best', kpiAvg5: 'Average · 5', kpiErrAvg: 'Errors · avg',
+  perDay: 'Day', perWeek: 'Week', perMonth: 'Month', perYear: 'Year',
+  vsPrevPeriod: { day: 'vs yesterday', week: 'vs last week', month: 'vs last month', year: 'vs last year' },
+  periodEmpty: 'Nothing recorded in this period',
+  chartByAttempt: 'Time per attempt today, s', chartByWeek: 'Average time by week, s',
+  chartLevelWeek: 'Average level by week', chartLevelAttempt: 'Level per session today',
+  kpiAttempts: 'Attempts', kpiBest: 'Best', kpiAvg: 'Average', kpiErrAvg: 'Errors · avg',
   kpiSessions: 'Sessions', kpiLevel: 'Level', kpiMaxLevel: 'Best level', kpiAcc: 'Accuracy · 5',
   chartTime: 'Average time by day, s', chartLevel: 'Average level by day',
   chartEmpty: 'The chart appears after your first attempts',
@@ -2100,11 +2111,27 @@ document.addEventListener('keydown', e => {
 });
 
 /* ================= Statistics ================= */
-function statFiltered() {
-  const ex = S().fEx || 'schulte';
+const PERIODS = ['day', 'week', 'month', 'year'];
+const PERIOD_DAYS = { day: 1, week: 7, month: 30, year: 365 };
+function period() { return PERIODS.indexOf(S().fPeriod) >= 0 ? S().fPeriod : 'month'; }
+function periodFrom(p, shift) {           // shift 1 = the same window, one window earlier
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const days = PERIOD_DAYS[p];
+  return d.getTime() - ((days - 1) + days * (shift || 0)) * 86400000;
+}
+function byExercise(ex) {
   if (ex === 'nback') return recs('nback');
   if (ex === 'gorbov') return recs('gorbov');
   return DB.records.filter(r => r.kind === 'schulte' && r.mode === (S().fMode || 'click') && r.size === (S().fSize || 5));
+}
+function statFiltered() {
+  const from = periodFrom(period());
+  return byExercise(S().fEx || 'schulte').filter(r => r.ts >= from);
+}
+function statPrevious() {                 // the equivalent window right before this one
+  const p = period(), from = periodFrom(p, 1), to = periodFrom(p);
+  return byExercise(S().fEx || 'schulte').filter(r => r.ts >= from && r.ts < to);
 }
 function renderStats() {
   const ex = S().fEx || 'schulte';
@@ -2123,11 +2150,18 @@ function renderStats() {
     [4, 5, 6].forEach(s =>
       chips.append(mkChip(s + '×' + s, (S().fSize || 5) === s, () => { saveSettings({ fSize: s }); renderStats(); })));
   }
+  const per = $('statPeriod');
+  per.replaceChildren();
+  PERIODS.forEach(k => per.append(mkChip(t('per' + k[0].toUpperCase() + k.slice(1)), period() === k,
+    () => { saveSettings({ fPeriod: k }); renderStats(); })));
   $('compactNote').hidden = !DB.meta.compacted;
   $('compactNote').textContent = t('compactNote');
   $('seriesSec').hidden = ex !== 'schulte';
   $('heatSec').hidden = ex === 'nback';
-  $('chartCap').textContent = ex === 'nback' ? t('chartLevel') : t('chartTime');
+  const p = period();
+  $('chartCap').textContent = ex === 'nback'
+    ? (p === 'day' ? t('chartLevelAttempt') : p === 'year' ? t('chartLevelWeek') : t('chartLevel'))
+    : (p === 'day' ? t('chartByAttempt') : p === 'year' ? t('chartByWeek') : t('chartTime'));
   const F = statFiltered();
   renderKPI(F, ex);
   renderChart(F, ex);
@@ -2148,27 +2182,33 @@ function renderKPI(F, ex) {
   const box = $('kpi');
   box.replaceChildren();
   if (!F.length) {
-    const e = el('div', 'empty', t('statsEmpty'));
+    const e = el('div', 'empty', byExercise(ex).length ? t('periodEmpty') : t('statsEmpty'));
     e.style.gridColumn = '1 / -1';
     box.append(e);
     return;
   }
+  const prev = statPrevious();
+  const deltaCell = (now, before, fmt) => {          // against the same window one step back
+    if (!before.length) return null;
+    const d = mean(now) - mean(before);
+    if (!isFinite(d)) return null;
+    return el('div', 'd ' + (d <= 0 ? 'down' : 'up'),
+      (d <= 0 ? '−' : '+') + fmt(Math.abs(d)) + ' ' + t('vsPrevPeriod')[period()]);
+  };
   if (ex === 'nback') {
     box.append(kpiCell(t('kpiSessions'), String(F.length)));
     box.append(kpiCell(t('kpiLevel'), String(DB.meta.nback.n)));
     box.append(kpiCell(t('kpiMaxLevel'), String(Math.max.apply(null, F.map(r => r.n)))));
-    box.append(kpiCell(t('kpiAcc'), Math.round(mean(F.slice(-5).map(r => r.pct))) + '%'));
+    const acc = F.map(r => r.pct);
+    box.append(kpiCell(t('kpiAcc'), Math.round(mean(acc)) + '%', '',
+      deltaCell(acc, prev.map(r => r.pct), v => Math.round(v) + '%')));
     return;
   }
   box.append(kpiCell(t('kpiAttempts'), String(F.length)));
   box.append(kpiCell(t('kpiBest'), fmtS(Math.min.apply(null, F.map(a => a.t))), t('unit').trim()));
-  const last5 = F.slice(-5).map(a => a.t);
-  let delta = null;
-  if (F.length >= 10) {
-    const d = mean(last5) - mean(F.slice(-10, -5).map(a => a.t));
-    delta = el('div', 'd ' + (d <= 0 ? 'down' : 'up'), (d <= 0 ? '−' : '+') + fmtSU(Math.abs(d)));
-  }
-  box.append(kpiCell(t('kpiAvg5'), fmtS(mean(last5)), t('unit').trim(), delta));
+  const times = F.map(a => a.t);
+  box.append(kpiCell(t('kpiAvg'), fmtS(mean(times)), t('unit').trim(),
+    deltaCell(times, prev.map(a => a.t), fmtSU)));
   const errs = F.filter(a => typeof a.err === 'number');
   box.append(kpiCell(t('kpiErrAvg'), errs.length ? fmtS(mean(errs.map(a => a.err))) : '—'));
 }
@@ -2176,13 +2216,23 @@ function renderChart(F, ex) {
   const box = $('chartBox'), axis = $('chartAxis');
   box.replaceChildren(); axis.replaceChildren();
   const isLvl = ex === 'nback';
-  const byDay = new Map();
-  F.forEach(r => {
-    const k = dayKey(r.ts);
-    if (!byDay.has(k)) byDay.set(k, { ts: r.ts, vals: [] });
-    byDay.get(k).vals.push(isLvl ? r.n : r.t);
-  });
-  const days = [...byDay.values()].sort((a, b) => a.ts - b.ts).slice(-30).map(d => ({ ts: d.ts, avg: mean(d.vals), n: d.vals.length }));
+  const p = period();
+  const val = r => isLvl ? r.n : r.t;
+  let days;
+  if (p === 'day') {                       // a point per attempt: within-session dynamics
+    days = F.slice().sort((a, b) => a.ts - b.ts).map(r => ({ ts: r.ts, avg: val(r), n: 1 }));
+  } else {
+    const bucket = p === 'year'
+      ? ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return String(d.getTime() - ((d.getDay() + 6) % 7) * 86400000); }
+      : ts => dayKey(ts);
+    const map = new Map();
+    F.forEach(r => {
+      const k = bucket(r.ts);
+      if (!map.has(k)) map.set(k, { ts: r.ts, vals: [] });
+      map.get(k).vals.push(val(r));
+    });
+    days = [...map.values()].sort((a, b) => a.ts - b.ts).map(d => ({ ts: d.ts, avg: mean(d.vals), n: d.vals.length }));
+  }
   if (!days.length) { box.append(el('div', 'empty', t('chartEmpty'))); return; }
   const W = 600, H = 150, P = 6;
   const lo = Math.min.apply(null, days.map(d => d.avg)), hi = Math.max.apply(null, days.map(d => d.avg));
@@ -2203,7 +2253,8 @@ function renderChart(F, ex) {
   const last = days[days.length - 1];
   svg.append(svgEl('circle', { cx: X(days.length - 1), cy: Y(last.avg), r: 3.4, fill: cssVar('--accent') }));
   box.append(svg);
-  axis.append(el('span', null, fmtDay(days[0].ts)), el('span', null, fmtDay(last.ts) + ' · ' + (isLvl ? fmtS(last.avg) : fmtSU(last.avg))));
+  const stamp = ts => period() === 'day' ? fmtTime(ts) : fmtDay(ts);
+  axis.append(el('span', null, stamp(days[0].ts)), el('span', null, stamp(last.ts) + ' · ' + (isLvl ? fmtS(last.avg) : fmtSU(last.avg))));
 }
 function delButton(onConfirm) {
   const b = el('button', 'rowDel', '×');
@@ -2237,7 +2288,8 @@ function table(heads, rows) {
 function renderSeries() {
   const box = $('seriesBox');
   box.replaceChildren();
-  const rows = DB.records.filter(r => r.kind === 'series' && r.mode === (S().fMode || 'click') && r.size === (S().fSize || 5)).slice(-8).reverse();
+  const from = periodFrom(period());
+  const rows = DB.records.filter(r => r.kind === 'series' && r.ts >= from && r.mode === (S().fMode || 'click') && r.size === (S().fSize || 5)).slice(-8).reverse();
   if (!rows.length) { box.append(el('div', 'empty', t('seriesEmpty'))); return; }
   box.append(table(
     [{ label: t('thDate') }, { label: t('thT15') }, { label: t('thER'), cls: 'num' }, { label: t('thVR'), cls: 'num' }, { label: t('thPU'), cls: 'num' }, { label: '', cls: 'del' }],
