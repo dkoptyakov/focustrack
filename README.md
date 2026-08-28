@@ -70,6 +70,15 @@ The file is organised in numbered sections — design tokens, markup, i18n dicti
 logic, storage adapters, exercise controllers, statistics, boot. Game rules, scoring, merge
 and migration are DOM-free functions, so they can be exercised straight from the console.
 
+## Credits
+
+Letter recordings: “A-Z Vocalized” by Mike Koenig, [soundbible.com](https://soundbible.com/2009-A-Z-Vocalized.html),
+licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Eight letters of the
+Jaeggi set were cut from the original pack and packed into one sprite.
+
+Typefaces: IBM Plex Sans and IBM Plex Mono, [SIL Open Font License 1.1](https://openfontlicense.org/),
+subset to the characters this app uses.
+
 ## License
 
 MIT
