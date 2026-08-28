@@ -909,13 +909,19 @@ function scoreChannel(seq, n, answers) {
   }
   return s;
 }
+/* Brain Workshop's standard scoring: hits over hits plus errors. Correct
+   rejections are deliberately not counted — they are a Jaeggi-mode extra, and
+   counting them would let doing nothing at all score near the promotion
+   threshold. Derived from the stored counts, so old sessions rescore too. */
+function nbPct(pos, aud) {
+  const hits = pos.hit + aud.hit;
+  const errs = pos.miss + pos.fa + aud.miss + aud.fa;
+  return hits + errs ? Math.round(hits * 100 / (hits + errs)) : 0;
+}
 function scoreSession(trials, ansPos, ansAud) {
   const pos = scoreChannel(trials.pos, trials.n, ansPos);
   const aud = scoreChannel(trials.aud, trials.n, ansAud);
-  const scored = (trials.count - trials.n) * 2;
-  const errs = pos.miss + pos.fa + aud.miss + aud.fa;
-  const pct = scored > 0 ? Math.round((scored - errs) / scored * 100) : 0;
-  return { pos, aud, pct };
+  return { pos, aud, pct: nbPct(pos, aud) };
 }
 function nextLevel(n, failStreak, pct) {
   if (pct >= 80) return { n: n + 1, failStreak: 0, change: 'up' };
@@ -1915,7 +1921,11 @@ const Letters = {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) throw new Error('no Web Audio');
       this.ctx = this.ctx || new AC();
-      if (this.ctx.state === 'suspended') await this.ctx.resume();
+      if (this.ctx.state === 'suspended') {
+        // resume() stays pending forever without a user gesture, so never wait on it alone
+        await Promise.race([this.ctx.resume(), new Promise(r => setTimeout(r, 2500))]);
+        if (this.ctx.state === 'suspended') throw new Error('audio still suspended');
+      }
       if (!this.buf) {
         const bin = atob(NB_SPRITE);
         const bytes = new Uint8Array(bin.length);
@@ -2062,7 +2072,7 @@ function showResult(rec, series, lvl) {
 
   const hero = $('resHero');
   hero.replaceChildren();
-  if (isNb) { hero.append(String(rec.pct)); hero.append(el('span', 'u', '%')); }
+  if (isNb) { hero.append(String(nbPct(rec.pos, rec.aud))); hero.append(el('span', 'u', '%')); }
   else { hero.append(fmtS(rec.t)); hero.append(el('span', 'u', t('unit').trim())); }
 
   /* delta plate */
@@ -2263,9 +2273,9 @@ function renderKPI(F, ex) {
     box.append(kpiCell(t('kpiSessions'), String(F.length)));
     box.append(kpiCell(t('kpiLevel'), String(DB.meta.nback.n)));
     box.append(kpiCell(t('kpiMaxLevel'), String(Math.max.apply(null, F.map(r => r.n)))));
-    const acc = F.map(r => r.pct);
+    const acc = F.map(r => nbPct(r.pos, r.aud));
     box.append(kpiCell(t('kpiAcc'), Math.round(mean(acc)) + '%', '',
-      deltaCell(acc, prev.map(r => r.pct), v => Math.round(v) + '%')));
+      deltaCell(acc, prev.map(r => nbPct(r.pos, r.aud)), v => Math.round(v) + '%')));
     return;
   }
   box.append(kpiCell(t('kpiAttempts'), String(F.length)));
@@ -2404,7 +2414,7 @@ function renderAttempts(F, ex) {
   const rows = F.slice(-15).reverse().map(a => {
     if (ex === 'nback') {
       const acc = s => s.hit + '/' + (s.hit + s.miss);
-      return [{ text: fmtDT(a.ts) }, { text: String(a.n), cls: 'num' }, { text: a.pct + '%', cls: 'num' },
+      return [{ text: fmtDT(a.ts) }, { text: String(a.n), cls: 'num' }, { text: nbPct(a.pos, a.aud) + '%', cls: 'num' },
         { text: acc(a.pos), cls: 'num' }, { text: acc(a.aud), cls: 'num' }, { node: delButton(() => delRecord(a.id)), cls: 'del' }];
     }
     let maxP = '—', avgP = '—';
